@@ -38,6 +38,47 @@ def extract_offer_organizations(offer_text, offer_name=""):
     return sorted({item.strip() for item in candidates if item.strip() not in ignored}, key=len, reverse=True)
 
 
+def build_local_summary(profile, offer_text, matched_skills):
+    """Construye un resumen dinámico con datos del JSON cuando el modelo no responde."""
+    dp = profile.get("datos_personales", {})
+    profession = str(dp.get("profesion", "profesional")).strip()
+    offer_lower = (offer_text or "").casefold()
+    focus = []
+    if "bi" in offer_lower or "business intelligence" in offer_lower:
+        focus.append("análisis BI")
+    if "data" in offer_lower or "datos" in offer_lower:
+        focus.append("análisis de datos")
+    if "automat" in offer_lower:
+        focus.append("automatización")
+    if "energia" in offer_lower or "energía" in offer_lower:
+        focus.append("gestión energética")
+    focus_text = ", ".join(focus) or "optimización de procesos"
+    skill_text = ", ".join(str(item) for item in matched_skills[:6]) or "las competencias registradas"
+    roles = [str(item.get("cargo", "")).strip() for item in profile.get("experiencia", []) if item.get("cargo")]
+    role_text = ", ".join(roles[:3]) or "experiencia profesional diversa"
+    return (
+        f"{profession} con experiencia en {focus_text}, respaldada por conocimientos en {skill_text}. "
+        f"Su trayectoria incluye los roles de {role_text}, con participación en análisis, automatización, "
+        "documentación y mejora de procesos según las responsabilidades registradas en el perfil maestro. "
+        "Integra su formación técnica y experiencia profesional para transformar información en resultados "
+        "útiles, mantener la trazabilidad de los procesos y aportar soluciones alineadas con los objetivos de la oferta."
+    )
+
+
+def summary_is_factual(summary, profile, offer_text):
+    """Rechaza sectores de la oferta presentados como experiencia no documentada."""
+    profile_text = json.dumps(profile, ensure_ascii=False).casefold()
+    summary_lower = summary.casefold()
+    sector_terms = (
+        "fintech", "financiero", "financiera", "cobranzas", "cobranza",
+        "riesgo de crédito", "riesgo crediticio", "banca", "bancario",
+    )
+    for term in sector_terms:
+        if term in summary_lower and term not in profile_text:
+            return False
+    return True
+
+
 def adapt_profile_to_offer(profile, offer_text, analysis=None):
     """Adapta el resumen, prioridad de habilidades y experiencia a cualquier oferta sin inventar hechos."""
     offer_lower = (offer_text or "").lower()
@@ -70,63 +111,16 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
 
     summary = profile.get("perfil_profesional", {}).get("resumen", "")
     gemini_summary = str((analysis or {}).get("resumen_profesional", "")).strip()
-    if len(gemini_summary.split()) >= 80 and gemini_summary != "NO_EVIDENCIADO":
+    if (
+        len(gemini_summary.split()) >= 60
+        and gemini_summary != "NO_EVIDENCIADO"
+        and summary_is_factual(gemini_summary, profile, offer_text)
+    ):
         summary = gemini_summary
     else:
         gemini_summary = ""
-    tokens = {
-        "data": ["data scientist", "cientifico de datos", "científico de datos", "data analyst", "analista de datos", "analytics", "data"],
-        "bi": ["business intelligence", "bi", "power bi", "dashboard", "dashboards", "analista bi"],
-        "energia": ["energia", "energía", "eficiencia energética", "iso 50001", "movilidad eléctrica", "energy"],
-        "ingenieria": ["ingeniero eléctrico", "ingenieria electrica", "ingeniería eléctrica", "project manager", "mantenimiento eléctrico"],
-        "automatizacion": ["automatización", "automatizacion", "python", "etl", "sql"],
-    }
-
-    if not gemini_summary and any(token in offer_lower for token in tokens["data"]):
-        summary = (
-            "Ingeniero eléctrico con enfoque en análisis de datos, automatización, visualización y modelado predictivo. "
-            "Cuenta con experiencia en Python, Power BI, SQL, ETL y análisis exploratorio para convertir datos complejos en información útil para la toma de decisiones. "
-            "Su perfil combina ingeniería, análisis de información y eficiencia operativa, con especial interés en soluciones basadas en datos y optimización de procesos."
-        )
-    elif not gemini_summary and any(token in offer_lower for token in tokens["bi"]):
-        summary = (
-            "Ingeniero eléctrico y analista de datos con experiencia en BI, ETL, Power BI, SQL, automatización y visualización de indicadores. "
-            "Aplica análisis exploratorio, KPIs y transformación de datos para optimizar decisiones operativas y energéticas."
-        )
-    elif not gemini_summary and any(token in offer_lower for token in tokens["energia"]):
-        summary = (
-            "Ingeniero eléctrico con experiencia en análisis energético, eficiencia y optimización de procesos. "
-            "Ha trabajado en automatización, gestión energética, indicadores operativos y soluciones de análisis para infraestructura y movilidad eléctrica."
-        )
-    elif not gemini_summary and any(token in offer_lower for token in tokens["ingenieria"]):
-        summary = (
-            "Ingeniero eléctrico con experiencia en infraestructura, automatización, mantenimiento, coordinación técnica y gestión de proyectos. "
-            "Cuenta con desempeño en sistemas eléctricos, indicadores operativos, proyectos energéticos y optimización de procesos."
-        )
-    elif not gemini_summary and any(token in offer_lower for token in tokens["automatizacion"]):
-        summary = (
-            "Ingeniero eléctrico con experiencia en automatización, ETL, Power BI y optimización de procesos. "
-            "Aplica Python, análisis de datos y automatización para mejorar la operación, la trazabilidad y la toma de decisiones."
-        )
-
-    preferred_order = [
-        "Python",
-        "SQL",
-        "Power BI",
-        "ETL",
-        "Machine Learning",
-        "Pandas",
-        "PostgreSQL",
-        "ISO 50001",
-        "Movilidad eléctrica",
-        "Automatización",
-        "Análisis de datos",
-        "Visualización de datos",
-    ]
-    ordered_keywords = [
-        item for item in preferred_order
-        if any(item.lower() in skill.lower() for skill in profile_skills)
-    ]
+        summary = build_local_summary(profile, offer_text, matched_keywords)
+    ordered_keywords = profile_skills
 
     gemini_keywords = []
     for suggestion in (analysis or {}).get("palabras_clave", []):
@@ -180,23 +174,15 @@ def generate_offer_report(offer_path, profile_path):
     analysis = analyze_offer_and_profile(offer_text, profile)
 
     requirements = [
-        "Python",
-        "Power BI",
-        "SQL",
-        "ETL",
-        "Machine Learning",
-        "ISO 50001",
-        "Movilidad eléctrica",
-        "TensorFlow",
+        item for item in analysis.get("palabras_clave", [])
+        if isinstance(item, str) and item.strip()
     ]
 
     matches = classify_requirements(requirements, profile)
-    validation = validate_claims_against_profile([
-        "Python",
-        "Power BI",
-        "Científico de Datos en Green Mobil",
-        "TensorFlow",
-    ], profile)
+    validation = validate_claims_against_profile(
+        requirements,
+        profile,
+    )
 
     return {
         "offer_text": offer_text,
@@ -229,8 +215,25 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
         if verified and verified not in selected_skills:
             selected_skills.append(verified)
 
-    if selected_skills:
-        adapted["keywords"] = selected_skills
+    fallback_skills = []
+    for skill in profile.get("habilidades", []):
+        skill_lower = str(skill).casefold()
+        if skill_lower in offer_text.casefold() or any(
+            token.casefold() in offer_text.casefold()
+            for token in str(skill).split()
+            if len(token) > 3
+        ):
+            fallback_skills.append(skill)
+    for skill in profile.get("habilidades", []):
+        if skill not in fallback_skills:
+            fallback_skills.append(skill)
+
+    for skill in fallback_skills:
+        if skill not in selected_skills:
+            selected_skills.append(skill)
+        if len(selected_skills) >= 14:
+            break
+    adapted["keywords"] = selected_skills
 
     source_logros = profile.get("logros", [])
     proposed_logros = adapt_achievements_to_offer(source_logros, offer_text, model_name)
@@ -247,7 +250,7 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
     return adapted
 
 
-def generate_cv_pdf_for_offer(offer_name: str = "RapiCredit_Científico de Datos Junior.docx", offers_dir=None, profile_path=None, output_dir=None):
+def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=None, output_dir=None):
     root = Path(__file__).resolve().parent.parent
     if offers_dir is None:
         offers_dir = root / "ofertas"
@@ -256,7 +259,11 @@ def generate_cv_pdf_for_offer(offer_name: str = "RapiCredit_Científico de Datos
     if profile_path is None:
         profile_path = root / "config" / "perfil_maestro.json"
 
-    offer_path = Path(offers_dir) / offer_name
+    offer_files = sorted(Path(offers_dir).glob("*.docx")) if offer_name is None else [Path(offers_dir) / offer_name]
+    if not offer_files:
+        raise FileNotFoundError(f"No hay ofertas .docx en: {offers_dir}")
+    offer_path = offer_files[0]
+    offer_name = offer_path.name
 
     if not offer_path.exists():
         raise FileNotFoundError(f"No existe la oferta: {offer_path}")

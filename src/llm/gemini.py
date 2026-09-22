@@ -16,19 +16,32 @@ def _text_response(prompt, model_name):
     return response if isinstance(response, dict) else {}
 
 
+def _local_reorder_experience(experience, offer_text):
+    """Reordena frases existentes por coincidencia con la oferta, sin inventar contenido."""
+    description = str(experience.get("descripcion", "")).strip()
+    sentences = [item.strip() for item in re.split(r"(?<=[.!?])\s+", description) if item.strip()]
+    offer_words = {
+        word.casefold()
+        for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", offer_text or "")
+    }
+    ranked = sorted(
+        enumerate(sentences),
+        key=lambda item: (
+            -sum(word.casefold() in offer_words for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", item[1])),
+            item[0],
+        ),
+    )
+    return " ".join(sentence for _, sentence in ranked)
+
+
 def _fallback_analysis(profile):
     keywords = []
     for skill in profile.get("habilidades", []):
         keywords.append(skill)
 
     summary = profile.get("perfil_profesional", {}).get("resumen", "")
-    if not isinstance(summary, str) or len(summary.split()) < 45:
-        summary = (
-            "Ingeniero eléctrico con experiencia en infraestructura y redes MT/BT, gestión de proyectos, "
-            "automatización, análisis de datos y eficiencia energética. Cuenta con experiencia reciente en "
-            "movilidad eléctrica, modelos predictivos, pipelines ETL con Python, visualización en Power BI, "
-            "chatbots y despliegue de soluciones de machine learning."
-        )
+    if not isinstance(summary, str):
+        summary = ""
 
     return {
         "cargo_detectado": "No validado automáticamente",
@@ -37,9 +50,8 @@ def _fallback_analysis(profile):
         "palabras_clave": keywords[:20],
         "resumen_profesional": summary,
         "experiencia_priorizada": [
-            "Green Mobil - Científico de Datos",
-            "Enel Colombia - infraestructura y automatización",
-            "Consultoría freelance - automatización energética",
+            f"{item.get('empresa', '')} - {item.get('cargo', '')}"
+            for item in profile.get("experiencia", [])
         ],
         "logros_priorizados": [],
         "responsabilidades_priorizadas": [],
@@ -147,7 +159,8 @@ def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", f
     description = str(result.get("descripcion_adaptada", "")).strip()
     evaluator_phrases = (
         "el candidato", "el perfil", "nivel de ajuste", "se ajusta a la oferta",
-        "en rapicredit", "en esta empresa", "apoyaré", "implementaré", "contribuiré",
+           "en rapicredit", "en esta empresa", "apoyaré", "implementaré", "contribuiré",
+           "pasantía", "pasantia", "pasante", "internship", "práctica profesional", "practica profesional",
     )
     source_words = {
         word.casefold()
@@ -159,12 +172,12 @@ def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", f
     }
     source_overlap = len(source_words & description_words)
     if (
-        len(description.split()) < 35
+        len(description.split()) < 25
         or any(phrase in description.casefold() for phrase in evaluator_phrases)
         or any(company.casefold() in description.casefold() for company in forbidden_companies)
-        or source_overlap < 4
+        or source_overlap < 3
     ):
-        return experience.get("descripcion", "")
+        return _local_reorder_experience(experience, offer_text)
     return description
 
 
@@ -235,6 +248,11 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     1. No inventes empleos, empresas, fechas, títulos, herramientas ni métricas.
     2. Usa solo la información del perfil maestro y de la oferta.
     3. Si no hay evidencia suficiente, devuelve "NO_EVIDENCIADO".
+    3.1. No conviertas el sector, cliente, empresa, producto o problema descrito en
+    la oferta en experiencia del profesional. Solo puedes afirmar sectores, clientes,
+    cargos y proyectos que aparezcan explícitamente en el perfil maestro.
+    3.2. No agregues Fintech, financiero, cobranzas, riesgo de crédito, banca ni
+    ningún otro sector de la oferta al resumen si no aparece en el perfil maestro.
     4. Devuelve ÚNICAMENTE un objeto JSON válido con estas claves exactas:
        - cargo_detectado
        - palabras_clave
@@ -253,7 +271,7 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     {offer_sample}
 
     INSTRUCCIONES DE FORMATO:
-    - resumen_profesional: entre 110 y 150 palabras, escrito como un resumen de CV en tercera persona neutra o estilo nominal profesional. No digas 'el candidato', 'el perfil', 'se ajusta', 'nivel de ajuste' ni hagas una evaluación. Explica experiencia, especialidad, herramientas, proyectos relacionados, sectores y valor profesional.
+    - resumen_profesional: entre 110 y 150 palabras, escrito como un resumen de CV en tercera persona neutra o estilo nominal profesional. No digas 'el candidato', 'el perfil', 'se ajusta', 'nivel de ajuste' ni hagas una evaluación. Explica solo experiencia, especialidad, herramientas, proyectos y sectores presentes en el perfil maestro. Puedes conectar esas evidencias con la oferta, pero nunca presentar un requisito de la oferta como experiencia previa.
     - palabras_clave: lista de términos de la oferta respaldados por el perfil maestro.
     - experiencia_priorizada: lista de empresas/cargos reales del perfil.
     - logros_priorizados y responsabilidades_priorizadas: copiar literalmente del perfil maestro.
@@ -266,7 +284,7 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
 
     if local_response:
         generated_summary = str(local_response.get("resumen_profesional", "")).strip()
-        if len(generated_summary.split()) < 80:
+        if len(generated_summary.split()) < 60:
             generated_summary = ""
 
         cleaned = {

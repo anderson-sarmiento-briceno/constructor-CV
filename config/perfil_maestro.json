@@ -2,6 +2,11 @@
   "datos_personales": {
     "nombre": "Anderson Sarmiento",
     "profesion": "Ingeniero Eléctrico",
+    "profesiones": [
+      "Ingeniero Eléctrico",
+      "Esp. Gerencia de Proyectos",
+      "Científico de Datos"
+    ],
     "ciudad": "Bogotá, Colombia",
     "telefono": "321 212 1013",
     "correo": "andersarb@gmail.com",

@@ -190,10 +190,9 @@ def render_cv_to_pdf_legacy(profile_or_html, output_pdf_path):
     full_name = _safe_text(dp.get("nombre"), "Anderson Sarmiento")
     profession = _safe_text(dp.get("profesion"), "Ingeniero Eléctrico")
     target_title = _safe_text(profile.get("titulo_objetivo"), profession)
-    title_parts = [target_title]
-    if target_title.lower() != profession.lower():
-        title_parts.append(profession)
-    title_parts.extend(["Esp. Gerencia de Proyectos", "Científico de Datos"])
+    professions = dp.get("profesiones", [profession])
+    professions = [str(item).strip() for item in professions if str(item).strip()]
+    title_parts = [target_title] + [item for item in professions if item.casefold() != target_title.casefold()]
     city = _safe_text(dp.get("ciudad"), "Bogotá, Colombia")
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
@@ -331,10 +330,9 @@ def render_cv_to_pdf_model_legacy(profile_or_html, output_pdf_path):
     full_name = _safe_text(dp.get("nombre"), "Anderson Sarmiento")
     profession = _safe_text(dp.get("profesion"), "Ingeniero Eléctrico")
     target_title = _safe_text(profile.get("titulo_objetivo"), profession)
-    title_parts = [target_title]
-    if target_title.lower() != profession.lower():
-        title_parts.append(profession)
-    title_parts.extend(["Esp. Gerencia de Proyectos", "Científico de Datos"])
+    professions = dp.get("profesiones", [profession])
+    professions = [str(item).strip() for item in professions if str(item).strip()]
+    title_parts = [target_title] + [item for item in professions if item.casefold() != target_title.casefold()]
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
     linkedin = _safe_text(dp.get("linkedin"), "anderson-sarmiento-briceno")
@@ -486,10 +484,11 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     full_name = _safe_text(dp.get("nombre"), "Anderson Sarmiento")
     profession = _safe_text(dp.get("profesion"), "Ingeniero Eléctrico")
     target_title = _safe_text(profile.get("titulo_objetivo"), profession)
-    title_parts = [target_title]
-    if target_title.lower() != profession.lower():
-        title_parts.append(profession)
-    title_parts.extend(["Esp. Gerencia de Proyectos", "Científico de Datos"])
+    professions = dp.get("profesiones", [profession])
+    professions = [str(item).strip() for item in professions if str(item).strip()]
+    title_parts = [target_title] + [
+        item for item in professions if item.casefold() != target_title.casefold()
+    ]
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
     linkedin = _safe_text(dp.get("linkedin"), "anderson-sarmiento-briceno")
@@ -597,11 +596,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
             sidebar_flow.append(Spacer(1, 88))
         if doc.page == 1:
             sidebar_flow.append(para(full_name.upper(), sidebar_name))
-            sidebar_flow.extend([
-                para("Ingeniero Eléctrico", sidebar_role),
-                para("Esp. Gerencia de Proyectos", sidebar_role),
-                para("Científico de Datos", sidebar_role),
-            ])
+            sidebar_flow.extend(para(item, sidebar_role) for item in professions)
             sidebar_section("CONTACTO")
             for value in (phone, email, github, city):
                 sidebar_flow.append(para(value, sidebar_text))
