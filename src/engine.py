@@ -70,7 +70,7 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
 
     summary = profile.get("perfil_profesional", {}).get("resumen", "")
     gemini_summary = str((analysis or {}).get("resumen_profesional", "")).strip()
-    if len(gemini_summary.split()) >= 45 and gemini_summary != "NO_EVIDENCIADO":
+    if len(gemini_summary.split()) >= 80 and gemini_summary != "NO_EVIDENCIADO":
         summary = gemini_summary
     else:
         gemini_summary = ""

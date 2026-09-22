@@ -668,6 +668,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
         institution = _safe_text(item.get("institucion"), "")
         year = item.get("anio", "")
         main_story.append(para(f"{title} | {institution} | {year}", body_style))
+        main_story.append(Spacer(1, 5))
 
     add_section("COMPETENCIAS TÉCNICAS")
     skill_cells = [bullet(value, body_style) for value in skills]

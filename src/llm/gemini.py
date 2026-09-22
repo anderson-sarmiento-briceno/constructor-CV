@@ -253,7 +253,7 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     {offer_sample}
 
     INSTRUCCIONES DE FORMATO:
-    - resumen_profesional: entre 90 y 130 palabras, escrito como un resumen de CV en tercera persona neutra o estilo nominal profesional. No digas 'el candidato', 'el perfil', 'se ajusta', 'nivel de ajuste' ni hagas una evaluación. Explica experiencia, especialidad, herramientas, proyectos relacionados y valor profesional.
+    - resumen_profesional: entre 110 y 150 palabras, escrito como un resumen de CV en tercera persona neutra o estilo nominal profesional. No digas 'el candidato', 'el perfil', 'se ajusta', 'nivel de ajuste' ni hagas una evaluación. Explica experiencia, especialidad, herramientas, proyectos relacionados, sectores y valor profesional.
     - palabras_clave: lista de términos de la oferta respaldados por el perfil maestro.
     - experiencia_priorizada: lista de empresas/cargos reales del perfil.
     - logros_priorizados y responsabilidades_priorizadas: copiar literalmente del perfil maestro.
@@ -266,7 +266,7 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
 
     if local_response:
         generated_summary = str(local_response.get("resumen_profesional", "")).strip()
-        if len(generated_summary.split()) < 45:
+        if len(generated_summary.split()) < 80:
             generated_summary = ""
 
         cleaned = {
