@@ -51,7 +51,7 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
 
     summary = profile.get("perfil_profesional", {}).get("resumen", "")
     gemini_summary = str((analysis or {}).get("resumen_profesional", "")).strip()
-    if len(gemini_summary.split()) >= 70 and gemini_summary != "NO_EVIDENCIADO":
+    if len(gemini_summary.split()) >= 45 and gemini_summary != "NO_EVIDENCIADO":
         summary = gemini_summary
     else:
         gemini_summary = ""
@@ -117,7 +117,11 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
                 if skill not in gemini_keywords:
                     gemini_keywords.append(skill)
 
-    final_keywords = gemini_keywords + matched_keywords + [item for item in ordered_keywords if item not in matched_keywords]
+    final_keywords = []
+    for keyword in gemini_keywords + matched_keywords + ordered_keywords:
+        normalized_keyword = str(keyword).strip().casefold()
+        if normalized_keyword and not any(normalized_keyword == existing.casefold() for existing in final_keywords):
+            final_keywords.append(str(keyword).strip())
 
     profile_logros = profile.get("logros", [])
     selected_logros = [

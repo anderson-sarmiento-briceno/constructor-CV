@@ -23,6 +23,28 @@ Proyecto para generar CVs personalizados orientados a una oferta laboral, usando
 pip install -r requirements.txt
 ```
 
+También se requiere [Ollama](https://ollama.com/) ejecutándose en Windows y el
+modelo local configurado para este proyecto:
+
+```powershell
+ollama pull qwen2.5:7b
+ollama serve
+```
+
+El motor envía a Ollama únicamente texto: la oferta extraída del `.docx` y el
+perfil maestro serializado como JSON. No se envían archivos PDF, Word ni fotos.
+
+## Generar CVs
+
+Con Ollama ejecutándose y el modelo descargado:
+
+```powershell
+python src/engine.py
+```
+
+El resultado se crea en `output/pdf/`. La salida de consola indica si respondió
+`ollama-qwen2.5:7b` o si se usó el fallback local.
+
 ## Ejecutar pruebas
 
 ```bash

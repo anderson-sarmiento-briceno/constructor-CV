@@ -46,14 +46,14 @@ def _fallback_analysis(profile):
 
 def _call_ollama(
     prompt,
-    model_name="qwen2.5:3b",
+    model_name="qwen2.5:7b",
     max_retries=2,
     initial_delay=2,
 ):
     """Ejecuta inferencia local llamando al API REST de Ollama en localhost."""
     global _LAST_OLLAMA_ERROR
 
-    # Se asegura de usar la IP local 127.0.0.1 y el modelo qwen2.5:3b
+    # Se asegura de usar la IP local y el modelo local configurado.
     model_name = os.getenv("OLLAMA_MODEL", model_name)
     host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
     url = f"{host}/api/generate"
@@ -111,7 +111,7 @@ def _call_ollama(
 _call_gemini = _call_ollama
 
 
-def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:3b"):
+def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     """Usa el modelo local (vía Ollama) para interpretar semánticamente la oferta y priorizar contenido.
 
     La verdad factual se toma del perfil maestro y el sistema siempre valida antes
