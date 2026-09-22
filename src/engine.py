@@ -1,4 +1,5 @@
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -32,26 +33,28 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
     if not matched_keywords:
         matched_keywords = profile_skills[:10]
 
-    experience_order = {
-        "Green Mobil": 0,
-        "Enel Colombia": 1,
-        "Enel": 1,
-        "Consultor Freelance": 2,
-    }
-    gemini_experience = (analysis or {}).get("experiencia_priorizada", [])
-    for index, suggestion in enumerate(gemini_experience):
-        suggestion_lower = str(suggestion).lower()
-        for experience in profile.get("experiencia", []):
-            company = str(experience.get("empresa", ""))
-            role = str(experience.get("cargo", ""))
-            if company.lower() in suggestion_lower or role.lower() in suggestion_lower:
-                experience_order[company] = index
-    ordered_experience = sorted(
-        profile.get("experiencia", []),
-        key=lambda exp: experience_order.get(exp.get("empresa", ""), 99),
-    )
+    def experience_start_year(experience, fallback_index):
+        dates = str(experience.get("fechas", ""))
+        match = re.search(r"(?:19|20)\d{2}", dates)
+        if match:
+            return 0, -int(match.group(0)), fallback_index
+        experience_text = " ".join(str(value) for value in experience.values()).lower()
+        relevance = sum(1 for token in offer_lower.split() if len(token) > 3 and token in experience_text)
+        return 1, -relevance, fallback_index
+
+    ordered_experience = [
+        item for _, item in sorted(
+            enumerate(profile.get("experiencia", [])),
+            key=lambda pair: experience_start_year(pair[1], pair[0]),
+        )
+    ]
 
     summary = profile.get("perfil_profesional", {}).get("resumen", "")
+    gemini_summary = str((analysis or {}).get("resumen_profesional", "")).strip()
+    if len(gemini_summary.split()) >= 70 and gemini_summary != "NO_EVIDENCIADO":
+        summary = gemini_summary
+    else:
+        gemini_summary = ""
     tokens = {
         "data": ["data scientist", "cientifico de datos", "científico de datos", "data analyst", "analista de datos", "analytics", "data"],
         "bi": ["business intelligence", "bi", "power bi", "dashboard", "dashboards", "analista bi"],
@@ -60,28 +63,28 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
         "automatizacion": ["automatización", "automatizacion", "python", "etl", "sql"],
     }
 
-    if any(token in offer_lower for token in tokens["data"]):
+    if not gemini_summary and any(token in offer_lower for token in tokens["data"]):
         summary = (
             "Ingeniero eléctrico con enfoque en análisis de datos, automatización, visualización y modelado predictivo. "
             "Cuenta con experiencia en Python, Power BI, SQL, ETL y análisis exploratorio para convertir datos complejos en información útil para la toma de decisiones. "
             "Su perfil combina ingeniería, análisis de información y eficiencia operativa, con especial interés en soluciones basadas en datos y optimización de procesos."
         )
-    elif any(token in offer_lower for token in tokens["bi"]):
+    elif not gemini_summary and any(token in offer_lower for token in tokens["bi"]):
         summary = (
             "Ingeniero eléctrico y analista de datos con experiencia en BI, ETL, Power BI, SQL, automatización y visualización de indicadores. "
             "Aplica análisis exploratorio, KPIs y transformación de datos para optimizar decisiones operativas y energéticas."
         )
-    elif any(token in offer_lower for token in tokens["energia"]):
+    elif not gemini_summary and any(token in offer_lower for token in tokens["energia"]):
         summary = (
             "Ingeniero eléctrico con experiencia en análisis energético, eficiencia y optimización de procesos. "
             "Ha trabajado en automatización, gestión energética, indicadores operativos y soluciones de análisis para infraestructura y movilidad eléctrica."
         )
-    elif any(token in offer_lower for token in tokens["ingenieria"]):
+    elif not gemini_summary and any(token in offer_lower for token in tokens["ingenieria"]):
         summary = (
             "Ingeniero eléctrico con experiencia en infraestructura, automatización, mantenimiento, coordinación técnica y gestión de proyectos. "
             "Cuenta con desempeño en sistemas eléctricos, indicadores operativos, proyectos energéticos y optimización de procesos."
         )
-    elif any(token in offer_lower for token in tokens["automatizacion"]):
+    elif not gemini_summary and any(token in offer_lower for token in tokens["automatizacion"]):
         summary = (
             "Ingeniero eléctrico con experiencia en automatización, ETL, Power BI y optimización de procesos. "
             "Aplica Python, análisis de datos y automatización para mejorar la operación, la trazabilidad y la toma de decisiones."
@@ -116,10 +119,35 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
 
     final_keywords = gemini_keywords + matched_keywords + [item for item in ordered_keywords if item not in matched_keywords]
 
+    profile_logros = profile.get("logros", [])
+    selected_logros = [
+        logro for logro in (analysis or {}).get("logros_priorizados", [])
+        if any(str(logro).strip().lower() == str(real).strip().lower() for real in profile_logros)
+    ]
+    if not selected_logros:
+        selected_logros = profile_logros
+
+    profile_responsibilities = [
+        exp.get("descripcion", "") for exp in profile.get("experiencia", [])
+    ]
+    selected_responsibilities = [
+        item for item in (analysis or {}).get("responsabilidades_priorizadas", [])
+        if any(str(item).strip().lower() == str(real).strip().lower() for real in profile_responsibilities)
+    ]
+
     return {
         "summary": summary,
         "keywords": final_keywords[:20],
         "experiencia": ordered_experience[:4],
+        "titulo_objetivo": (
+            str((analysis or {}).get("cargo_detectado", "")).strip()
+            if str((analysis or {}).get("cargo_detectado", "")).strip() not in {"", "NO_EVIDENCIADO", "No validado automáticamente"}
+            else ""
+        ),
+        "logros": selected_logros[:5],
+        "responsabilidades": selected_responsibilities[:8],
+        "nivel_ajuste": (analysis or {}).get("nivel_ajuste", "No determinado"),
+        "requisitos_no_evidenciados": (analysis or {}).get("requisitos_no_evidenciados", []),
     }
 
 
@@ -180,6 +208,8 @@ def generate_cv_pdf_for_offer(offer_name: str = "RapiCredit_Científico de Datos
             "habilidades": adapted["keywords"],
             "experiencia": adapted["experiencia"],
             "formacion": profile.get("formacion", []),
+            "logros": adapted["logros"],
+            "titulo_objetivo": adapted["titulo_objetivo"],
         },
         {
             **profile,
@@ -231,4 +261,13 @@ if __name__ == "__main__":
     else:
         generated_items = generate_all_cv_for_offers(str(offers_dir), str(profile_path), str(output_dir))
         for item in generated_items:
-            print(json.dumps({"pdf": item["pdf"], "cargo": item["analysis"].get("cargo_detectado")}, ensure_ascii=False, indent=2))
+            analysis = item["analysis"]
+            print(json.dumps({
+                "pdf": item["pdf"],
+                "cargo": analysis.get("cargo_detectado"),
+                "analisis": analysis.get("estado"),
+                "modelo": analysis.get("modelo"),
+                "motivo": analysis.get("motivo"),
+                "nivel_ajuste": analysis.get("nivel_ajuste"),
+                "palabras_clave": len(analysis.get("palabras_clave", [])),
+            }, ensure_ascii=False, indent=2))

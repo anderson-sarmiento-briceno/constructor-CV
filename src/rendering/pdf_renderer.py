@@ -189,6 +189,11 @@ def render_cv_to_pdf_legacy(profile_or_html, output_pdf_path):
     dp = profile.get("datos_personales", {})
     full_name = _safe_text(dp.get("nombre"), "Anderson Sarmiento")
     profession = _safe_text(dp.get("profesion"), "Ingeniero Eléctrico")
+    target_title = _safe_text(profile.get("titulo_objetivo"), profession)
+    title_parts = [target_title]
+    if target_title.lower() != profession.lower():
+        title_parts.append(profession)
+    title_parts.extend(["Esp. Gerencia de Proyectos", "Científico de Datos"])
     city = _safe_text(dp.get("ciudad"), "Bogotá, Colombia")
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
@@ -325,6 +330,11 @@ def render_cv_to_pdf_model_legacy(profile_or_html, output_pdf_path):
     dp = profile.get("datos_personales", {})
     full_name = _safe_text(dp.get("nombre"), "Anderson Sarmiento")
     profession = _safe_text(dp.get("profesion"), "Ingeniero Eléctrico")
+    target_title = _safe_text(profile.get("titulo_objetivo"), profession)
+    title_parts = [target_title]
+    if target_title.lower() != profession.lower():
+        title_parts.append(profession)
+    title_parts.extend(["Esp. Gerencia de Proyectos", "Científico de Datos"])
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
     linkedin = _safe_text(dp.get("linkedin"), "anderson-sarmiento-briceno")
@@ -475,6 +485,11 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
 
     full_name = _safe_text(dp.get("nombre"), "Anderson Sarmiento")
     profession = _safe_text(dp.get("profesion"), "Ingeniero Eléctrico")
+    target_title = _safe_text(profile.get("titulo_objetivo"), profession)
+    title_parts = [target_title]
+    if target_title.lower() != profession.lower():
+        title_parts.append(profession)
+    title_parts.extend(["Esp. Gerencia de Proyectos", "Científico de Datos"])
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
     linkedin = _safe_text(dp.get("linkedin"), "anderson-sarmiento-briceno")
@@ -628,9 +643,9 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
 
     main_story = [
         para(full_name.upper(), name_style),
-        para(f"{profession}  |  Esp. Gerencia de Proyectos  |  Científico de Datos", title_style),
+        para("  |  ".join(title_parts), title_style),
         para(f"{phone}  |  {email}  |  {github}  |  {city}", contact_style),
-        para("13+ años  |  Machine Learning  |  ETL  |  Chatbots  |  Redes Eléctricas  |  ISO 50001", contact_style),
+        para("  |  ".join(str(skill) for skill in skills[:6]), contact_style),
     ]
 
     def add_section(title):
@@ -694,4 +709,11 @@ def render_cv_to_pdf(profile_or_html, output_pdf_path):
 def build_cv_html(cv_data, profile):
     """Retorna un perfil estructurado para que la capa visual se pueda renderizar sin depender de HTML frágil."""
     merged = _normalize_profile(profile if isinstance(profile, dict) else {})
+    if isinstance(cv_data, dict):
+        for field in ("perfil_profesional", "habilidades", "experiencia", "formacion", "cursos", "logros", "intereses", "titulo_objetivo"):
+            if field in cv_data and cv_data[field]:
+                if field == "perfil_profesional" and isinstance(cv_data[field], dict):
+                    merged[field] = {**merged.get(field, {}), **cv_data[field]}
+                else:
+                    merged[field] = cv_data[field]
     return merged
