@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-_LAST_GEMINI_ERROR = ""
+_LAST_OLLAMA_ERROR = ""
 
 
 def _fallback_analysis(profile):
@@ -28,7 +28,7 @@ def _fallback_analysis(profile):
     return {
         "cargo_detectado": "No validado automáticamente",
         "modelo": "local-fallback",
-        "motivo": _LAST_GEMINI_ERROR or "Gemini no respondió",
+        "motivo": _LAST_OLLAMA_ERROR or "Ollama no respondió",
         "palabras_clave": keywords[:20],
         "resumen_profesional": summary,
         "experiencia_priorizada": [
@@ -44,30 +44,27 @@ def _fallback_analysis(profile):
     }
 
 
-def _call_gemini(
+def _call_ollama(
     prompt,
-    model_name="gemini-3.6-flash",
-    max_retries=3,
-    initial_delay=35,
+    model_name="qwen2.5:3b",
+    max_retries=2,
+    initial_delay=2,
 ):
-    global _LAST_GEMINI_ERROR
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        _LAST_GEMINI_ERROR = "GEMINI_API_KEY no está configurada"
-        return None
+    """Ejecuta inferencia local llamando al API REST de Ollama en localhost."""
+    global _LAST_OLLAMA_ERROR
 
-    # Si hay una variable de entorno definida, tiene prioridad
-    model_name = os.getenv("GEMINI_MODEL", model_name)
+    # Se asegura de usar la IP local 127.0.0.1 y el modelo qwen2.5:3b
+    model_name = os.getenv("OLLAMA_MODEL", model_name)
+    host = os.getenv("OLLAMA_HOST", "http://127.0.0.1:11434")
+    url = f"{host}/api/generate"
 
-    url = (
-        "https://generativelanguage.googleapis.com/v1beta/models/"
-        f"{model_name}:generateContent?key={api_key}"
-    )
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
+        "model": model_name,
+        "prompt": prompt,
+        "format": "json",
+        "stream": False,
+        "options": {
             "temperature": 0.2,
-            "responseMimeType": "application/json",
         },
     }
 
@@ -80,65 +77,42 @@ def _call_gemini(
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with request.urlopen(req, timeout=60) as response:
+            with request.urlopen(req, timeout=120) as response:
                 raw = response.read().decode("utf-8")
                 parsed = json.loads(raw)
-                text = parsed["candidates"][0]["content"]["parts"][0]["text"]
-                result = json.loads(text)
-                _LAST_GEMINI_ERROR = ""
+                text_response = parsed.get("response", "")
+
+                # Limpieza por si el LLM envuelve la respuesta en bloques markdown
+                clean_text = re.sub(r"^```json\s*", "", text_response.strip())
+                clean_text = re.sub(r"\s*```$", "", clean_text)
+
+                result = json.loads(clean_text)
+                _LAST_OLLAMA_ERROR = ""
                 return result
 
-        except error.HTTPError as exc:
-            try:
-                raw_error = exc.read().decode("utf-8", errors="replace")
-                error_body = json.loads(raw_error)
-                api_message = error_body.get("error", {}).get("message", "")
-            except (ValueError, OSError):
-                api_message = ""
-
-            _LAST_GEMINI_ERROR = f"HTTP {exc.code}: {api_message}".strip()
-
-            temporary_errors = {429, 500, 502, 503, 504}
-            if exc.code in temporary_errors and attempt < max_retries:
-                wait_time = None
-
-                # 1. Intentar extraer tiempo exacto de espera desde el mensaje de Google
-                match = re.search(
-                    r"retry in (\d+(?:\.\d+)?)s", api_message, re.IGNORECASE
-                )
-                if match:
-                    wait_time = float(match.group(1)) + 0.5
-
-                # 2. Si no viene en el texto, buscar en los headers HTTP
-                if not wait_time:
-                    retry_after_header = exc.headers.get("Retry-After")
-                    if retry_after_header and retry_after_header.isdigit():
-                        wait_time = float(retry_after_header)
-
-                # 3. Estrategia por defecto según tipo de error
-                if not wait_time:
-                    if exc.code == 429:
-                        wait_time = initial_delay * (1.5**attempt)
-                    else:
-                        wait_time = 3.0 * (2**attempt)
-
-                print(
-                    f"⚠️ [{model_name}] Error HTTP {exc.code}. Reintentando en {wait_time:.1f}s... (Intento {attempt + 1}/{max_retries})"
-                )
-                time.sleep(wait_time)
+        except error.URLError as exc:
+            _LAST_OLLAMA_ERROR = f"No se pudo conectar a Ollama ({exc.reason}). Asegúrate de que Ollama esté ejecutándose."
+            if attempt < max_retries:
+                time.sleep(initial_delay)
                 continue
-
             return None
 
-        except (error.URLError, TimeoutError, OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
-            _LAST_GEMINI_ERROR = f"Error en la petición: {str(exc)}"
+        except (TimeoutError, OSError, ValueError, KeyError, json.JSONDecodeError) as exc:
+            _LAST_OLLAMA_ERROR = f"Error en la respuesta local: {str(exc)}"
+            if attempt < max_retries:
+                time.sleep(initial_delay)
+                continue
             return None
 
     return None
 
 
-def analyze_offer_and_profile(offer_text, profile, model_name="gemini-3.6-flash"):
-    """Usa Gemini solo para interpretar semánticamente la oferta y priorizar contenido.
+# Mantener _call_gemini como alias de compatibilidad hacia Ollama
+_call_gemini = _call_ollama
+
+
+def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:3b"):
+    """Usa el modelo local (vía Ollama) para interpretar semánticamente la oferta y priorizar contenido.
 
     La verdad factual se toma del perfil maestro y el sistema siempre valida antes
     de aceptar cualquier afirmación factual.
@@ -151,13 +125,13 @@ def analyze_offer_and_profile(offer_text, profile, model_name="gemini-3.6-flash"
 
     prompt = f"""
     Eres un analista de selección con estricta regla anti-alucinación.
-    Tu trabajo es analizar una oferta y un perfil profesional real.
+    Tu trabajo es analizar una oferta laboral y un perfil profesional real.
 
-    REGLAS:
-    1. No inventes empleos, empresas, fechas, títulos, herramientas o métricas.
-    2. Usa solo la información que recibe en el perfil y en la oferta.
+    REGLAS ESTRICTAS:
+    1. No inventes empleos, empresas, fechas, títulos, herramientas ni métricas.
+    2. Usa solo la información del perfil maestro y de la oferta.
     3. Si no hay evidencia suficiente, devuelve "NO_EVIDENCIADO".
-    4. Devuelve SOLO JSON válido con estas claves:
+    4. Devuelve ÚNICAMENTE un objeto JSON válido con estas claves exactas:
        - cargo_detectado
        - palabras_clave
        - resumen_profesional
@@ -165,8 +139,8 @@ def analyze_offer_and_profile(offer_text, profile, model_name="gemini-3.6-flash"
        - estado
        - nivel_ajuste (alto, medio, bajo o no determinado)
        - requisitos_no_evidenciados
-       - logros_priorizados: textos copiados literalmente del perfil maestro
-       - responsabilidades_priorizadas: textos copiados literalmente del perfil maestro
+       - logros_priorizados
+       - responsabilidades_priorizadas
 
     PERFIL MAESTRO:
     {profile_summary}
@@ -174,35 +148,35 @@ def analyze_offer_and_profile(offer_text, profile, model_name="gemini-3.6-flash"
     OFERTA:
     {offer_sample}
 
-    El resumen_profesional debe tener entre 90 y 120 palabras, estar escrito en español
-    profesional y explicar claramente: identidad profesional, años de experiencia,
-    fortalezas que coinciden con la oferta, herramientas relevantes, sectores/proyectos
-    relacionados y el tipo de valor que puede aportar. No hagas un resumen genérico ni
-    repitas solamente palabras clave. Usa únicamente hechos comprobables del perfil maestro.
-    Las palabras_clave deben ser términos de la oferta respaldados por el perfil maestro.
-    experiencia_priorizada debe listar empresas/cargos reales, sin crear nombres nuevos.
-    logros_priorizados y responsabilidades_priorizadas deben copiar literalmente textos
-    existentes del perfil maestro, no reescribirlos ni inventar métricas.
-    Responde únicamente con JSON válido.
+    INSTRUCCIONES DE FORMATO:
+    - resumen_profesional: entre 70 y 120 palabras explicando identidad profesional, fortalezas alineadas a la oferta y valor que aporta.
+    - palabras_clave: lista de términos de la oferta respaldados por el perfil maestro.
+    - experiencia_priorizada: lista de empresas/cargos reales del perfil.
+    - logros_priorizados y responsabilidades_priorizadas: copiar literalmente del perfil maestro.
+
+    Responde SOLAMENTE en formato JSON.
     """
 
-    gemini_response = _call_gemini(prompt, model_name=model_name)
-    if gemini_response:
-        generated_summary = str(gemini_response.get("resumen_profesional", "")).strip()
-        if len(generated_summary.split()) < 70:
+    local_response = _call_ollama(prompt, model_name=model_name)
+    active_model = os.getenv("OLLAMA_MODEL", model_name)
+
+    if local_response:
+        generated_summary = str(local_response.get("resumen_profesional", "")).strip()
+        if len(generated_summary.split()) < 45:
             generated_summary = ""
+
         cleaned = {
-            "cargo_detectado": gemini_response.get("cargo_detectado", "NO_EVIDENCIADO"),
-            "modelo": os.getenv("GEMINI_MODEL", model_name),
-            "motivo": "Respuesta válida de Gemini",
-            "palabras_clave": gemini_response.get("palabras_clave", [])[:30],
+            "cargo_detectado": local_response.get("cargo_detectado", "NO_EVIDENCIADO"),
+            "modelo": f"ollama-{active_model}",
+            "motivo": "Respuesta válida del modelo local Ollama",
+            "palabras_clave": local_response.get("palabras_clave", [])[:30],
             "resumen_profesional": generated_summary,
-            "experiencia_priorizada": gemini_response.get("experiencia_priorizada", []),
-            "logros_priorizados": gemini_response.get("logros_priorizados", [])[:8],
-            "responsabilidades_priorizadas": gemini_response.get("responsabilidades_priorizadas", [])[:8],
-            "requisitos_no_evidenciados": gemini_response.get("requisitos_no_evidenciados", [])[:15],
-            "nivel_ajuste": gemini_response.get("nivel_ajuste", "No determinado"),
-            "estado": "analizado con Gemini",
+            "experiencia_priorizada": local_response.get("experiencia_priorizada", []),
+            "logros_priorizados": local_response.get("logros_priorizados", [])[:8],
+            "responsabilidades_priorizadas": local_response.get("responsabilidades_priorizadas", [])[:8],
+            "requisitos_no_evidenciados": local_response.get("requisitos_no_evidenciados", [])[:15],
+            "nivel_ajuste": local_response.get("nivel_ajuste", "No determinado"),
+            "estado": "analizado con modelo local (Ollama)",
         }
         return cleaned
 
