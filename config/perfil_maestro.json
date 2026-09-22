@@ -1,0 +1,115 @@
+{
+  "datos_personales": {
+    "nombre": "Anderson Sarmiento",
+    "profesion": "Ingeniero Eléctrico",
+    "ciudad": "Bogotá, Colombia",
+    "telefono": "321 212 1013",
+    "correo": "andersarb@gmail.com",
+    "linkedin": "anderson-sarmiento-briceno",
+    "github": "https://github.com/anderson-sarmiento-briceno",
+    "foto": null
+  },
+  "perfil_profesional": {
+    "resumen": "Ingeniero Eléctrico con más de 13 años de experiencia en infraestructura y redes MT/BT, complementada con especialización en Gerencia de Proyectos y formación en Ciencia de Datos. Experiencia reciente como Científico de Datos en movilidad eléctrica (ISO 50001) y como freelance en chatbots de ventas, despliegue de modelos ML en producción y pipelines ETL. Enfoque en resultados medibles: optimización de costos, automatización de procesos y toma de decisiones basada en datos."
+  },
+  "formacion": [
+    {
+      "titulo": "Ingeniero Eléctrico",
+      "institucion": "Universidad Distrital Francisco José de Caldas",
+      "anio": 2013,
+      "tipo": "pregrado"
+    },
+    {
+      "titulo": "Esp. Gerencia de Proyectos",
+      "institucion": "Universidad del Bosque",
+      "anio": 2015,
+      "tipo": "especializacion"
+    },
+    {
+      "titulo": "Científico de Datos",
+      "institucion": "Platzi",
+      "anio": "En curso",
+      "estado": "En curso",
+      "tipo": "curso"
+    }
+  ],
+  "experiencia": [
+    {
+      "empresa": "Green Mobil",
+      "cargo": "Científico de Datos",
+      "fechas": "20 Jul 2025 – 15 Sep 2025",
+      "descripcion": "Desarrollé e implementé un modelo de regresión lineal para calcular la energía consumida por la flota de buses eléctricos, generando el insumo técnico requerido para la certificación ISO 50001 de gestión energética. También diseñé e implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de datos desde APIs de operación, Siesa y Excel hacia PostgreSQL. Construí dashboards interactivos en Power BI para visualizar consumo energético, operación de flota y procesos internos."
+    },
+    {
+      "empresa": "Consultor Freelance",
+      "cargo": "Científico de Datos & Automatización",
+      "fechas": "Sep 2023 – Jul 2025",
+      "descripcion": "Diseñé e implementé chatbots de ventas con ManyChat + WhatsApp Business API y lógica comercial avanzada en Python. Creé flujos conversacionales que generaron +35% en tasas de conversión, reducción del 50% en costos de adquisición y automatización del 70% de preguntas frecuentes. Implementé modelos de machine learning en producción y optimicé código en Python y Spark."
+    },
+    {
+      "empresa": "Enel",
+      "cargo": "Profesional en Infraestructura y Redes",
+      "fechas": "Jul 2010 – Ago 2023",
+      "descripcion": "Lideré equipos multidisciplinarios en planificación, diseño y ejecución de obras eléctricas MT/BT, cumpliendo plazos, presupuesto y estándares de seguridad. Implementé estrategias de interpretación de datos históricos de redes para identificar oportunidades de eficiencia y reducción de costos operativos."
+    }
+  ],
+  "habilidades": [
+    "Gestión de Proyectos",
+    "Análisis de Datos / ML",
+    "ETL & Python",
+    "Chatbots & Automatización",
+    "Visualización Power BI",
+    "Seguridad & HSEQ",
+    "Liderazgo de Equipos",
+    "Python",
+    "SQL / PostgreSQL",
+    "Power BI",
+    "Spark",
+    "Pandas / Scikit-learn",
+    "Machine Learning",
+    "ETL",
+    "Automatización de procesos",
+    "Siesa",
+    "Excel / Access",
+    "AutoCAD",
+    "SAP",
+    "MS Project",
+    "Redes Eléctricas",
+    "ISO 50001",
+    "Movilidad eléctrica",
+    "Gestión energética",
+    "Análisis predictivo",
+    "RETIE",
+    "CREG",
+    "HSEQ",
+    "RPA"
+  ],
+  "certificaciones": [
+    "ISO 50001",
+    "Python Intermedio",
+    "Business Intelligence con Power BI",
+    "Fundamentos de Bases de Datos"
+  ],
+  "idiomas": [
+    "Español — Nativo",
+    "English — Intermedio"
+  ],
+  "cursos": [
+    "Python Intermedio — Platzi — 2023",
+    "BI con Power BI — Platzi — 2022",
+    "Fundamentos de Bases de Datos — SENA"
+  ],
+  "intereses": [
+    "Deporte y actividad física",
+    "Lectura técnica",
+    "Música"
+  ],
+  "logros": [
+    "Modelo de regresión lineal de consumo energético de buses eléctricos orientado a certificación ISO 50001 (Green Mobil).",
+    "Pipelines ETL automatizados con Python que unificaron APIs de operación, Siesa y Excel → PostgreSQL + Power BI.",
+    "Chatbots de ventas con ManyChat + WhatsApp API: +35 % conversión, -50 % costo de adquisición y 70 % de FAQs automatizadas.",
+    "Despliegue de modelos ML en producción (APIs, pipelines, chatbots) y optimización de código en Python y Spark.",
+    "13 años liderando proyectos de infraestructura eléctrica MT/BT en Enel con cumplimiento de presupuesto, plazos y HSEQ."
+  ],
+  "proyectos": []
+}
