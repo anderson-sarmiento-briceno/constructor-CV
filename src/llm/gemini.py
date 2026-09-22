@@ -11,6 +11,11 @@ load_dotenv()
 _LAST_OLLAMA_ERROR = ""
 
 
+def _text_response(prompt, model_name):
+    response = _call_ollama(prompt, model_name=model_name)
+    return response if isinstance(response, dict) else {}
+
+
 def _fallback_analysis(profile):
     keywords = []
     for skill in profile.get("habilidades", []):
@@ -111,6 +116,105 @@ def _call_ollama(
 _call_gemini = _call_ollama
 
 
+def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", forbidden_companies=None):
+    """Reescribe una experiencia real para la oferta sin alterar sus hechos."""
+    source = json.dumps(experience, ensure_ascii=False)
+    forbidden_companies = forbidden_companies or []
+    forbidden_text = ", ".join(forbidden_companies) or "cualquier organización mencionada en la oferta"
+    prompt = f"""
+    Adapta una experiencia profesional real a una oferta laboral.
+    Devuelve solo JSON con la clave descripcion_adaptada.
+    Escribe entre 80 y 130 palabras, con tono profesional natural de CV, sin hablar de
+    'el candidato', 'el perfil' ni de la evaluación. Redacta como una descripción propia
+    y directa. Conserva literalmente empresa, cargo, fechas, herramientas, proyectos y
+    métricas del texto fuente. No inventes ningún dato. Solo cambia orden, énfasis y
+    redacción para conectar con la oferta.
+
+    OFERTA:
+    {offer_text[:4000]}
+
+    EXPERIENCIA FUENTE:
+    {source}
+
+    La empresa objetivo no es una experiencia del profesional y está PROHIBIDO escribir
+    su nombre. No escribas en futuro ni describas tareas que el profesional haría en la
+    empresa objetivo. No menciones la oferta, el cargo buscado ni "en esta empresa".
+
+    EMPRESAS U ORGANIZACIONES OBJETIVO PROHIBIDAS:
+    {forbidden_text}
+    """
+    result = _text_response(prompt, model_name)
+    description = str(result.get("descripcion_adaptada", "")).strip()
+    evaluator_phrases = (
+        "el candidato", "el perfil", "nivel de ajuste", "se ajusta a la oferta",
+        "en rapicredit", "en esta empresa", "apoyaré", "implementaré", "contribuiré",
+    )
+    source_words = {
+        word.casefold()
+        for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{5,}", experience.get("descripcion", ""))
+    }
+    description_words = {
+        word.casefold()
+        for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{5,}", description)
+    }
+    source_overlap = len(source_words & description_words)
+    if (
+        len(description.split()) < 35
+        or any(phrase in description.casefold() for phrase in evaluator_phrases)
+        or any(company.casefold() in description.casefold() for company in forbidden_companies)
+        or source_overlap < 4
+    ):
+        return experience.get("descripcion", "")
+    return description
+
+
+def adapt_achievements_to_offer(logros, offer_text, model_name="qwen2.5:7b"):
+    """Prioriza y adapta logros existentes sin inventar resultados ni empresas."""
+    source = json.dumps(logros, ensure_ascii=False)
+    prompt = f"""
+    Selecciona hasta cinco logros reales para un CV adaptado a una oferta.
+    Devuelve solo JSON con la clave logros_adaptados, una lista de textos.
+    Usa únicamente los logros fuente. Puedes mejorar el orden y hacer ajustes mínimos
+    de redacción, pero conserva literalmente empresas, herramientas y métricas.
+    Escribe como logros propios del profesional, no como evaluación. No menciones la
+    oferta, la empresa objetivo ni tareas futuras.
+
+    OFERTA:
+    {offer_text[:4000]}
+
+    LOGROS FUENTE:
+    {source}
+    """
+    result = _text_response(prompt, model_name)
+    return [str(item).strip() for item in result.get("logros_adaptados", []) if str(item).strip()]
+
+
+def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
+    """Prioriza habilidades reales y evita duplicados en la salida del CV."""
+    source = json.dumps({
+        "habilidades": profile.get("habilidades", []),
+        "certificaciones": profile.get("certificaciones", []),
+    }, ensure_ascii=False)
+    prompt = f"""
+    Selecciona habilidades para un CV adaptado a una oferta laboral.
+    Devuelve solo JSON con dos listas: aptitudes_clave y herramientas.
+    Usa exclusivamente elementos existentes en la fuente. No inventes ni reformules
+    nombres de tecnologías. Elimina duplicados y ordena por relevancia para la oferta.
+    aptitudes_clave debe contener máximo 7 elementos y herramientas máximo 12.
+
+    OFERTA:
+    {offer_text[:4000]}
+
+    FUENTE REAL:
+    {source}
+    """
+    result = _text_response(prompt, model_name)
+    return {
+        "aptitudes_clave": result.get("aptitudes_clave", []),
+        "herramientas": result.get("herramientas", []),
+    }
+
+
 def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     """Usa el modelo local (vía Ollama) para interpretar semánticamente la oferta y priorizar contenido.
 
@@ -149,7 +253,7 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     {offer_sample}
 
     INSTRUCCIONES DE FORMATO:
-    - resumen_profesional: entre 70 y 120 palabras explicando identidad profesional, fortalezas alineadas a la oferta y valor que aporta.
+    - resumen_profesional: entre 90 y 130 palabras, escrito como un resumen de CV en tercera persona neutra o estilo nominal profesional. No digas 'el candidato', 'el perfil', 'se ajusta', 'nivel de ajuste' ni hagas una evaluación. Explica experiencia, especialidad, herramientas, proyectos relacionados y valor profesional.
     - palabras_clave: lista de términos de la oferta respaldados por el perfil maestro.
     - experiencia_priorizada: lista de empresas/cargos reales del perfil.
     - logros_priorizados y responsabilidades_priorizadas: copiar literalmente del perfil maestro.

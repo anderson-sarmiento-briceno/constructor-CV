@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.extraction.word_reader import extract_text_from_docx
-from src.llm.gemini import analyze_offer_and_profile
+from src.llm.gemini import adapt_achievements_to_offer, adapt_experience_to_offer, adapt_skills_to_offer, analyze_offer_and_profile
 from src.matching.matcher import classify_requirements
 from src.rendering.pdf_renderer import build_cv_html, render_cv_to_pdf_model
 from src.validation.validation import validate_claims_against_profile
@@ -17,6 +17,25 @@ from src.validation.validation import validate_claims_against_profile
 def load_profile(profile_path):
     with open(profile_path, "r", encoding="utf-8") as file:
         return json.load(file)
+
+
+def extract_offer_organizations(offer_text, offer_name=""):
+    """Obtiene nombres probables de organizaciones para impedir que se inventen empleos."""
+    candidates = set()
+    filename_stem = Path(offer_name).stem.replace("_", " ")
+    filename_words = re.findall(r"[A-ZÁÉÍÓÚÑ][A-Za-zÁÉÍÓÚÑáéíóúñ0-9&.-]+", filename_stem)
+    if filename_words:
+        candidates.add(" ".join(filename_words))
+
+    patterns = [
+        r"(?:empresa|compañía|compania|organización|organizacion|cliente|empleador)\s*[:\-]?\s*([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ&.-]*(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ&.-]*){0,3})",
+        r"(?:en|para)\s+([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ&.-]*(?:\s+[A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ&.-]*){0,2})",
+    ]
+    for pattern in patterns:
+        candidates.update(re.findall(pattern, offer_text or ""))
+
+    ignored = {"Python", "Power BI", "SQL", "Excel", "PostgreSQL", "Ollama", "WordPress"}
+    return sorted({item.strip() for item in candidates if item.strip() not in ignored}, key=len, reverse=True)
 
 
 def adapt_profile_to_offer(profile, offer_text, analysis=None):
@@ -187,6 +206,47 @@ def generate_offer_report(offer_path, profile_path):
     }
 
 
+def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=None):
+    """Ejecuta adaptaciones separadas para resumen, experiencias y habilidades."""
+    model_name = "qwen2.5:7b"
+    adapted_experience = []
+    for experience in adapted["experiencia"]:
+        updated = dict(experience)
+        updated["descripcion"] = adapt_experience_to_offer(
+            experience, offer_text, model_name, forbidden_companies
+        )
+        adapted_experience.append(updated)
+
+    skills_result = adapt_skills_to_offer(profile, offer_text, model_name)
+    allowed = {
+        str(item).strip().casefold(): str(item).strip()
+        for item in profile.get("habilidades", []) + profile.get("certificaciones", [])
+        if str(item).strip()
+    }
+    selected_skills = []
+    for item in skills_result.get("aptitudes_clave", []) + skills_result.get("herramientas", []):
+        verified = allowed.get(str(item).strip().casefold())
+        if verified and verified not in selected_skills:
+            selected_skills.append(verified)
+
+    if selected_skills:
+        adapted["keywords"] = selected_skills
+
+    source_logros = profile.get("logros", [])
+    proposed_logros = adapt_achievements_to_offer(source_logros, offer_text, model_name)
+    source_by_text = {str(item).strip().casefold(): item for item in source_logros}
+    selected_logros = [
+        source_by_text[item.casefold()]
+        for item in proposed_logros
+        if item.casefold() in source_by_text
+    ]
+    if selected_logros:
+        adapted["logros"] = selected_logros[:5]
+    adapted["experiencia"] = adapted_experience
+    adapted["bloques_ollama"] = len(adapted_experience) + 2
+    return adapted
+
+
 def generate_cv_pdf_for_offer(offer_name: str = "RapiCredit_Científico de Datos Junior.docx", offers_dir=None, profile_path=None, output_dir=None):
     root = Path(__file__).resolve().parent.parent
     if offers_dir is None:
@@ -205,6 +265,9 @@ def generate_cv_pdf_for_offer(offer_name: str = "RapiCredit_Científico de Datos
     offer_text = extract_text_from_docx(str(offer_path))
     analysis = analyze_offer_and_profile(offer_text, profile)
     adapted = adapt_profile_to_offer(profile, offer_text, analysis)
+    forbidden_companies = extract_offer_organizations(offer_text, offer_name)
+    adapted = adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies)
+    analysis["bloques_adaptados"] = adapted.get("bloques_ollama", 0)
 
     html = build_cv_html(
         {
@@ -274,4 +337,5 @@ if __name__ == "__main__":
                 "motivo": analysis.get("motivo"),
                 "nivel_ajuste": analysis.get("nivel_ajuste"),
                 "palabras_clave": len(analysis.get("palabras_clave", [])),
+                "bloques_adaptados_ollama": analysis.get("bloques_adaptados", 0),
             }, ensure_ascii=False, indent=2))
