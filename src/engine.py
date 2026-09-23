@@ -8,7 +8,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.extraction.word_reader import extract_text_from_docx
-from src.llm.gemini import adapt_achievements_to_offer, adapt_experience_to_offer, adapt_skills_to_offer, analyze_offer_and_profile
+from src.llm.gemini import adapt_experience_to_offer, adapt_skills_to_offer, analyze_offer_and_profile
 from src.matching.matcher import classify_requirements
 from src.rendering.pdf_renderer import build_cv_html, render_cv_to_pdf_model
 from src.validation.validation import validate_claims_against_profile
@@ -38,7 +38,7 @@ def extract_offer_organizations(offer_text, offer_name=""):
     return sorted({item.strip() for item in candidates if item.strip() not in ignored}, key=len, reverse=True)
 
 
-def build_local_summary(profile, offer_text, matched_skills):
+def build_local_summary(profile, offer_text, matched_skills, analysis=None):
     """Construye un resumen dinámico con datos del JSON cuando el modelo no responde."""
     dp = profile.get("datos_personales", {})
     profession = str(dp.get("profesion", "profesional")).strip()
@@ -52,6 +52,16 @@ def build_local_summary(profile, offer_text, matched_skills):
         focus.append("automatización")
     if "energia" in offer_lower or "energía" in offer_lower:
         focus.append("gestión energética")
+    analyzed_level = str((analysis or {}).get("nivel_ajuste", "")).casefold()
+    analyzed_priorities = [str(item) for item in (analysis or {}).get("palabras_clave", [])]
+    junior_offer = analyzed_level == "junior" or any(term in offer_lower for term in ("junior", "recién egresado", "básico", "bajo supervisión", "inicial"))
+    advanced_offer = analyzed_level == "avanzado" or any(term in offer_lower for term in ("analítica avanzada", "machine learning", "mlops", "producción", "inteligencia artificial", "modelos predictivos"))
+    if junior_offer:
+        focus.extend(["preparación y limpieza de datos", "análisis exploratorio", "documentación técnica"])
+    elif advanced_offer:
+        focus.extend(["modelado predictivo", "automatización analítica", "despliegue de soluciones de datos"])
+    if analyzed_priorities:
+        focus.extend(item for item in analyzed_priorities[:3] if item.casefold() not in {value.casefold() for value in focus})
     focus_text = ", ".join(focus) or "optimización de procesos"
     skill_text = ", ".join(str(item) for item in matched_skills[:6]) or "las competencias registradas"
     roles = [str(item.get("cargo", "")).strip() for item in profile.get("experiencia", []) if item.get("cargo")]
@@ -59,9 +69,9 @@ def build_local_summary(profile, offer_text, matched_skills):
     return (
         f"{profession} con experiencia en {focus_text}, respaldada por conocimientos en {skill_text}. "
         f"Su trayectoria incluye los roles de {role_text}, con participación en análisis, automatización, "
-        "documentación y mejora de procesos según las responsabilidades registradas en el perfil maestro. "
-        "Integra su formación técnica y experiencia profesional para transformar información en resultados "
-        "útiles, mantener la trazabilidad de los procesos y aportar soluciones alineadas con los objetivos de la oferta."
+        "documentación y mejora de procesos. Integra su formación técnica y experiencia profesional "
+        "para transformar información en resultados útiles, mantener la trazabilidad de los procesos "
+        "y aportar soluciones alineadas con las necesidades del rol."
     )
 
 
@@ -73,6 +83,12 @@ def summary_is_factual(summary, profile, offer_text):
         "fintech", "financiero", "financiera", "cobranzas", "cobranza",
         "riesgo de crédito", "riesgo crediticio", "banca", "bancario",
     )
+    meta_terms = (
+        "perfil maestro", "responsabilidades registradas", "objetivos de la oferta",
+        "objetivos del rol", "según la oferta", "alineadas con la oferta",
+    )
+    if any(term in summary_lower for term in meta_terms):
+        return False
     for term in sector_terms:
         if term in summary_lower and term not in profile_text:
             return False
@@ -119,7 +135,7 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
         summary = gemini_summary
     else:
         gemini_summary = ""
-        summary = build_local_summary(profile, offer_text, matched_keywords)
+        summary = build_local_summary(profile, offer_text, matched_keywords, analysis)
     ordered_keywords = profile_skills
 
     gemini_keywords = []
@@ -155,7 +171,7 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
     return {
         "summary": summary,
         "keywords": final_keywords[:20],
-        "experiencia": ordered_experience[:4],
+        "experiencia": ordered_experience,
         "titulo_objetivo": (
             str((analysis or {}).get("cargo_detectado", "")).strip()
             if str((analysis or {}).get("cargo_detectado", "")).strip() not in {"", "NO_EVIDENCIADO", "No validado automáticamente"}
@@ -236,7 +252,7 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
     adapted["keywords"] = selected_skills
 
     source_logros = profile.get("logros", [])
-    proposed_logros = adapt_achievements_to_offer(source_logros, offer_text, model_name)
+    proposed_logros = skills_result.get("logros", [])
     source_by_text = {str(item).strip().casefold(): item for item in source_logros}
     selected_logros = [
         source_by_text[item.casefold()]

@@ -43,18 +43,81 @@
       "empresa": "Green Mobil",
       "cargo": "Científico de Datos",
       "fechas": "20 Jul 2025 – 15 Sep 2025",
+      "sectores": ["Movilidad eléctrica", "Energía", "Operación de flota"],
+      "responsabilidades": [
+        "Desarrollo de modelos predictivos y de regresión para consumo energético.",
+        "Construcción de informes automatizados sobre datos de telemetría y operación.",
+        "Diseño de pipelines ETL desde APIs, Siesa, Excel y Parquet hacia PostgreSQL.",
+        "Construcción de dashboards e indicadores operativos en Power BI.",
+        "Análisis de desgaste de flota para apoyar mantenimiento predictivo."
+      ],
+      "proyectos": [
+        "Modelo predictivo de consumo energético para certificación ISO 50001.",
+        "Informes automatizados de telemetría con archivos Parquet.",
+        "Modelo de análisis de desgaste de flota."
+      ],
+      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría"],
+      "logros": [
+        "Automatización del procesamiento de grandes volúmenes de telemetría.",
+        "Generación de información accionable para consumo energético y operación de flota.",
+        "Insumo técnico para certificación ISO 50001."
+      ],
       "descripcion": "Desarrollé e implementé modelos de análisis predictivo y regresión para caracterizar el consumo energético de una flota de buses eléctricos y generar el insumo técnico requerido para la certificación ISO 50001. Construí informes automatizados de consumo energético a partir de grandes volúmenes de datos de telemetría, incluyendo archivos Parquet y datos operativos de alta frecuencia. Diseñé y desarrollé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión del mantenimiento. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL. Construí dashboards interactivos en Power BI para visualizar consumo energético, operación de flota, indicadores de desempeño y procesos internos, transformando grandes volúmenes de datos en información accionable para la toma de decisiones."
     },
     {
       "empresa": "Consultor Freelance",
       "cargo": "Científico de Datos & Automatización",
       "fechas": "Sep 2023 – Jul 2025",
+      "sectores": ["Automatización comercial", "Mercados financieros", "Análisis deportivo", "Soluciones de datos"],
+      "responsabilidades": [
+        "Diseño de soluciones de Ciencia de Datos, Machine Learning y automatización.",
+        "Desarrollo de chatbots de ventas con ManyChat y WhatsApp Business API.",
+        "Construcción de bots de análisis de mercados Forex integrados con MetaTrader 5.",
+        "Desarrollo de modelos predictivos para análisis deportivo.",
+        "Diseño de procesos ETL y web scraping.",
+        "Despliegue de modelos ML, APIs y pipelines automatizados."
+      ],
+      "proyectos": [
+        "Chatbots de ventas y automatización comercial.",
+        "Bots de análisis predictivo de mercados Forex con MetaTrader 5.",
+        "Modelos predictivos aplicados a datos deportivos.",
+        "Procesos ETL y web scraping para fuentes web."
+      ],
+      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "ManyChat", "WhatsApp Business API", "APIs", "ETL", "Web Scraping"],
+      "logros": [
+        "+35% en conversión, -50% en costos de adquisición y 70% de automatización de preguntas frecuentes.",
+        "Despliegue de modelos ML en producción mediante APIs y pipelines.",
+        "Automatización de extracción, transformación y almacenamiento de datos web."
+      ],
       "descripcion": "Diseñé e implementé soluciones de Ciencia de Datos, Machine Learning y automatización para diferentes necesidades de negocio. Desarrollé chatbots de ventas con ManyChat + WhatsApp Business API y lógica comercial avanzada en Python, creando flujos conversacionales que generaron +35% en tasas de conversión, reducción del 50% en costos de adquisición y automatización del 70% de preguntas frecuentes. Desarrollé bots para análisis de mercados financieros y Forex integrados con MetaTrader 5, utilizando modelos predictivos basados en árboles de regresión para analizar variables de mercado y generar señales de apoyo a la toma de decisiones. Construí modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning. Diseñé e implementé procesos ETL y web scraping para extraer, transformar, validar y almacenar información proveniente de diferentes fuentes web. Implementé modelos de Machine Learning en producción, APIs, pipelines automatizados y soluciones de procesamiento de datos, además de optimizar código en Python y Spark."
     },
     {
       "empresa": "Enel",
       "cargo": "Profesional en Infraestructura y Redes",
       "fechas": "Jul 2010 – Ago 2023",
+      "sectores": ["Infraestructura eléctrica", "Redes MT/BT", "Seguridad HSEQ", "Operación de redes"],
+      "responsabilidades": [
+        "Planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos eléctricos.",
+        "Dirección de más de 20 proyectos de redes aéreas bajo CREG y RETIE.",
+        "Análisis de datos históricos y operativos para eficiencia y reducción de costos.",
+        "Desarrollo de modelos predictivos de riesgo en obras eléctricas.",
+        "Construcción de dashboards HSEQ en Power BI.",
+        "Alertas tempranas de armónicos con Python y AWS.",
+        "Análisis en tiempo real con Tableau y modelado de redes con Digsilent y PSS/E."
+      ],
+      "proyectos": [
+        "Modelos predictivos de riesgo en obras eléctricas.",
+        "Dashboard HSEQ para accidentabilidad y cumplimiento RETIE.",
+        "Sistema de alertas tempranas de armónicos con Python y AWS.",
+        "Análisis de fallas críticas en tiempo real con Tableau.",
+        "Modelado de redes eléctricas con Digsilent y PSS/E."
+      ],
+      "herramientas": ["Python", "AWS", "Power BI", "Tableau", "Digsilent", "PSS/E", "CREG", "RETIE", "HSEQ"],
+      "logros": [
+        "Reducción del 40% en accidentes mediante modelos predictivos de riesgo.",
+        "Dirección de más de 20 proyectos de redes aéreas.",
+        "Implementación de alertas tempranas para seguimiento de armónicos."
+      ],
       "descripcion": "Lideré equipos multidisciplinarios en la planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos de infraestructura eléctrica y redes MT/BT, asegurando cumplimiento de plazos, presupuesto, estándares técnicos y requisitos de seguridad. Dirigí más de 20 proyectos de redes aéreas relacionados con diseño, ejecución y mantenimiento, cumpliendo estándares CREG y RETIE. Implementé estrategias de análisis e interpretación de datos históricos y operativos de redes para identificar oportunidades de eficiencia, optimización y reducción de costos. Desarrollé modelos predictivos para identificar patrones de riesgo en obras eléctricas, contribuyendo a una reducción del 40% en accidentes. Construí dashboards en Power BI para el monitoreo de indicadores HSEQ, incluyendo tasa de accidentabilidad y cumplimiento RETIE. Implementé un sistema de alertas tempranas para la identificación y seguimiento de armónicos utilizando Python y AWS. Realicé análisis de datos en tiempo real para apoyar la atención de fallas críticas mediante soluciones de visualización y análisis en Tableau. Participé en el modelado y análisis de redes eléctricas mediante Digsilent y PSS/E para evaluar y predecir el comportamiento operativo de los sistemas. Integré conocimientos de ingeniería eléctrica, gestión de proyectos y análisis de datos para apoyar la toma de decisiones técnicas y operativas."
     }
   ],

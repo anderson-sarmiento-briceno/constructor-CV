@@ -34,6 +34,52 @@ def _local_reorder_experience(experience, offer_text):
     return " ".join(sentence for _, sentence in ranked)
 
 
+def _extract_role_from_offer(offer_text):
+    role_patterns = (
+        (r"cient[ií]fico\(?a\)?\s+de\s+datos", "Científico de Datos"),
+        (r"data\s+scientist", "Data Scientist"),
+        (r"analista\s+de\s+datos", "Analista de Datos"),
+        (r"data\s+analyst", "Data Analyst"),
+    )
+    for pattern, role in role_patterns:
+        if re.search(pattern, offer_text or "", flags=re.IGNORECASE):
+            return role
+    patterns = (
+        r"(?:buscamos|vacante para|como)\s+(?:un\(?a\)?\s+)?([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ& ]{3,60})",
+        r"(?:rol|cargo)\s+(?:de|para)\s+([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ& ]{3,60})",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, offer_text or "", flags=re.IGNORECASE)
+        if match:
+            role = re.split(r"[.,!?:;\n]", match.group(1))[0].strip()
+            role = re.sub(r"\s+", " ", role)
+            if 2 <= len(role.split()) <= 8:
+                return role
+    return "NO_EVIDENCIADO"
+
+
+def _local_offer_overview(offer_text, profile):
+    text = (offer_text or "").casefold()
+    role = _extract_role_from_offer(offer_text)
+    if any(term in text for term in ("junior", "recién egresado", "bajo supervisión", "experiencia inicial")):
+        level = "junior"
+        priorities = ["análisis exploratorio", "preparación de datos", "documentación", "notebooks", "SQL", "Power BI", "Excel", "ETL"]
+    elif any(term in text for term in ("analítica avanzada", "mlops", "machine learning", "inteligencia artificial", "modelos predictivos")):
+        level = "avanzado"
+        priorities = ["modelos predictivos", "Machine Learning", "producción", "pipelines", "Python", "SQL", "Power BI", "ETL", "MLOps"]
+    else:
+        level = "intermedio"
+        priorities = ["análisis de datos", "automatización", "Python", "SQL", "Power BI", "ETL"]
+    profile_text = json.dumps(profile, ensure_ascii=False).casefold()
+    priorities = [item for item in priorities if item.casefold() in profile_text or item.casefold() in text]
+    return {
+        "cargo_detectado": role,
+        "nivel_rol": level,
+        "prioridades": priorities,
+        "requisitos_no_evidenciados": [],
+    }
+
+
 def _fallback_analysis(profile):
     keywords = []
     for skill in profile.get("habilidades", []):
@@ -64,8 +110,8 @@ def _fallback_analysis(profile):
 def _call_ollama(
     prompt,
     model_name="qwen2.5:7b",
-    max_retries=2,
-    initial_delay=2,
+    max_retries=0,
+    initial_delay=1,
 ):
     """Ejecuta inferencia local llamando al API REST de Ollama en localhost."""
     global _LAST_OLLAMA_ERROR
@@ -80,6 +126,7 @@ def _call_ollama(
         "prompt": prompt,
         "format": "json",
         "stream": False,
+        "keep_alive": "10m",
         "options": {
             "temperature": 0.2,
         },
@@ -94,7 +141,8 @@ def _call_ollama(
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
-            with request.urlopen(req, timeout=120) as response:
+            timeout = int(os.getenv("OLLAMA_TIMEOUT", "75"))
+            with request.urlopen(req, timeout=timeout) as response:
                 raw = response.read().decode("utf-8")
                 parsed = json.loads(raw)
                 text_response = parsed.get("response", "")
@@ -203,17 +251,18 @@ def adapt_achievements_to_offer(logros, offer_text, model_name="qwen2.5:7b"):
 
 
 def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
-    """Prioriza habilidades reales y evita duplicados en la salida del CV."""
+    """Prioriza habilidades y logros reales en una sola llamada local."""
     source = json.dumps({
         "habilidades": profile.get("habilidades", []),
         "certificaciones": profile.get("certificaciones", []),
     }, ensure_ascii=False)
     prompt = f"""
     Selecciona habilidades para un CV adaptado a una oferta laboral.
-    Devuelve solo JSON con dos listas: aptitudes_clave y herramientas.
+    Devuelve solo JSON con tres listas: aptitudes_clave, herramientas y logros.
     Usa exclusivamente elementos existentes en la fuente. No inventes ni reformules
     nombres de tecnologías. Elimina duplicados y ordena por relevancia para la oferta.
     aptitudes_clave debe contener máximo 7 elementos y herramientas máximo 12.
+    logros debe contener máximo 5 elementos copiados literalmente de la fuente.
 
     OFERTA:
     {offer_text[:4000]}
@@ -225,81 +274,69 @@ def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
     return {
         "aptitudes_clave": result.get("aptitudes_clave", []),
         "herramientas": result.get("herramientas", []),
+        "logros": result.get("logros", []),
     }
 
 
 def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
-    """Usa el modelo local (vía Ollama) para interpretar semánticamente la oferta y priorizar contenido.
-
-    La verdad factual se toma del perfil maestro y el sistema siempre valida antes
-    de aceptar cualquier afirmación factual.
-    """
+    """Analiza la oferta en bloques pequeños y combina resultados validados."""
     if not offer_text or not isinstance(profile, dict):
         return _fallback_analysis(profile or {})
 
+    offer_sample = offer_text[:5000]
     profile_summary = json.dumps(profile, ensure_ascii=False)
-    offer_sample = offer_text[:4000] if offer_text else ""
-
-    prompt = f"""
-    Eres un analista de selección con estricta regla anti-alucinación.
-    Tu trabajo es analizar una oferta laboral y un perfil profesional real.
-
-    REGLAS ESTRICTAS:
-    1. No inventes empleos, empresas, fechas, títulos, herramientas ni métricas.
-    2. Usa solo la información del perfil maestro y de la oferta.
-    3. Si no hay evidencia suficiente, devuelve "NO_EVIDENCIADO".
-    3.1. No conviertas el sector, cliente, empresa, producto o problema descrito en
-    la oferta en experiencia del profesional. Solo puedes afirmar sectores, clientes,
-    cargos y proyectos que aparezcan explícitamente en el perfil maestro.
-    3.2. No agregues Fintech, financiero, cobranzas, riesgo de crédito, banca ni
-    ningún otro sector de la oferta al resumen si no aparece en el perfil maestro.
-    4. Devuelve ÚNICAMENTE un objeto JSON válido con estas claves exactas:
-       - cargo_detectado
-       - palabras_clave
-       - resumen_profesional
-       - experiencia_priorizada
-       - estado
-       - nivel_ajuste (alto, medio, bajo o no determinado)
-       - requisitos_no_evidenciados
-       - logros_priorizados
-       - responsabilidades_priorizadas
-
-    PERFIL MAESTRO:
-    {profile_summary}
+    overview_prompt = f"""
+    Analiza únicamente esta oferta laboral. Devuelve SOLO JSON con:
+    cargo_detectado, nivel_rol (junior, intermedio, avanzado o no determinado),
+    prioridades, requisitos_no_evidenciados.
+    No describas experiencia del candidato y no inventes datos.
 
     OFERTA:
     {offer_sample}
-
-    INSTRUCCIONES DE FORMATO:
-    - resumen_profesional: entre 110 y 150 palabras, escrito como un resumen de CV en tercera persona neutra o estilo nominal profesional. No digas 'el candidato', 'el perfil', 'se ajusta', 'nivel de ajuste' ni hagas una evaluación. Explica solo experiencia, especialidad, herramientas, proyectos y sectores presentes en el perfil maestro. Puedes conectar esas evidencias con la oferta, pero nunca presentar un requisito de la oferta como experiencia previa.
-    - palabras_clave: lista de términos de la oferta respaldados por el perfil maestro.
-    - experiencia_priorizada: lista de empresas/cargos reales del perfil.
-    - logros_priorizados y responsabilidades_priorizadas: copiar literalmente del perfil maestro.
-
-    Responde SOLAMENTE en formato JSON.
     """
+    overview = _text_response(overview_prompt, model_name)
+    local_overview = _local_offer_overview(offer_text, profile)
+    if not overview.get("cargo_detectado") or overview.get("cargo_detectado") == "NO_EVIDENCIADO":
+        overview["cargo_detectado"] = local_overview["cargo_detectado"]
+    if not overview.get("nivel_rol") or overview.get("nivel_rol") == "no determinado":
+        overview["nivel_rol"] = local_overview["nivel_rol"]
+    if not overview.get("prioridades"):
+        overview["prioridades"] = local_overview["prioridades"]
+    summary_prompt = f"""
+    Redacta el perfil profesional de un CV para esta oferta.
+    Devuelve SOLO JSON con resumen_profesional de 110 a 150 palabras.
+    Escribe como CV propio, nunca como evaluación ni como explicación del proceso.
+    No uses frases como "perfil maestro", "responsabilidades registradas", "según la
+    oferta", "objetivos de la oferta" o "alineado con la oferta". Usa exclusivamente
+    hechos del perfil maestro.
+    No conviertas el sector o problema de la oferta en experiencia previa. Adapta el foco
+    al nivel y prioridades entregados, pero no inventes empresas, cargos, sectores ni métricas.
 
-    local_response = _call_ollama(prompt, model_name=model_name)
+    NIVEL Y PRIORIDADES:
+    {json.dumps(overview, ensure_ascii=False)}
+
+    PERFIL MAESTRO:
+    {profile_summary}
+    """
+    summary_result = _text_response(summary_prompt, model_name)
+    generated_summary = str(summary_result.get("resumen_profesional", "")).strip()
+    if len(generated_summary.split()) < 60:
+        generated_summary = ""
+
     active_model = os.getenv("OLLAMA_MODEL", model_name)
-
-    if local_response:
-        generated_summary = str(local_response.get("resumen_profesional", "")).strip()
-        if len(generated_summary.split()) < 60:
-            generated_summary = ""
-
-        cleaned = {
-            "cargo_detectado": local_response.get("cargo_detectado", "NO_EVIDENCIADO"),
-            "modelo": f"ollama-{active_model}",
-            "motivo": "Respuesta válida del modelo local Ollama",
-            "palabras_clave": local_response.get("palabras_clave", [])[:30],
-            "resumen_profesional": generated_summary,
-            "experiencia_priorizada": local_response.get("experiencia_priorizada", []),
-            "logros_priorizados": local_response.get("logros_priorizados", [])[:8],
-            "responsabilidades_priorizadas": local_response.get("responsabilidades_priorizadas", [])[:8],
-            "requisitos_no_evidenciados": local_response.get("requisitos_no_evidenciados", [])[:15],
-            "nivel_ajuste": local_response.get("nivel_ajuste", "No determinado"),
-            "estado": "analizado con modelo local (Ollama)",
-        }
-        return cleaned
-
-    return _fallback_analysis(profile)
+    detected_role = overview.get("cargo_detectado", "NO_EVIDENCIADO")
+    if not detected_role or detected_role == "NO_EVIDENCIADO":
+        detected_role = _extract_role_from_offer(offer_text)
+    return {
+        "cargo_detectado": detected_role,
+        "modelo": f"ollama-{active_model}",
+        "motivo": "Respuesta válida del modelo local Ollama",
+        "palabras_clave": overview.get("prioridades", [])[:30],
+        "resumen_profesional": generated_summary,
+        "experiencia_priorizada": [],
+        "logros_priorizados": [],
+        "responsabilidades_priorizadas": [],
+        "requisitos_no_evidenciados": overview.get("requisitos_no_evidenciados", [])[:15],
+        "nivel_ajuste": overview.get("nivel_rol", "No determinado"),
+        "estado": "analizado con modelo local (Ollama)",
+    }

@@ -620,6 +620,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
                     sidebar_flow.append(para(institution, sidebar_text))
                 if year:
                     sidebar_flow.append(para(year, sidebar_text))
+                sidebar_flow.append(Spacer(1, 7))
             sidebar_section("CURSOS")
             for value in courses:
                 sidebar_flow.append(bullet(value, sidebar_text))
