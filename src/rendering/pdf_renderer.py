@@ -494,12 +494,9 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
 
     full_name = _safe_text(dp.get("nombre"), "Anderson Sarmiento")
     profession = _safe_text(dp.get("profesion"), "Ingeniero Eléctrico")
-    target_title = _safe_text(profile.get("titulo_objetivo"), profession)
     professions = dp.get("profesiones", [profession])
     professions = [str(item).strip() for item in professions if str(item).strip()]
-    title_parts = [target_title] + [
-        item for item in professions if item.casefold() != target_title.casefold()
-    ]
+    title_parts = professions or [profession]
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
     linkedin = _safe_text(dp.get("linkedin"), "anderson-sarmiento-briceno")
@@ -514,6 +511,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     software = profile.get("software", []) or skills[7:19]
     nuevas_tecnologias = profile.get("nuevas_tecnologias", []) or []
     competencias = profile.get("competencias", []) or skills
+    habilidades_blandas = profile.get("habilidades_blandas", []) or []
     if len(software) < 5:
         software = software + [item for item in skills if item not in software]
     if len(nuevas_tecnologias) < 3:
@@ -619,7 +617,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
             sidebar_flow.append(para(full_name.upper(), sidebar_name))
             sidebar_flow.extend(para(item, sidebar_role) for item in professions)
             sidebar_section("CONTACTO")
-            for value in (phone, email, github, city):
+            for value in (phone, email, linkedin, github, city):
                 sidebar_flow.append(para(value, sidebar_text))
             sidebar_section("APTITUDES CLAVE")
             for value in aptitudes[:7]:
@@ -664,7 +662,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     main_story = [
         para(full_name.upper(), name_style),
         para("  |  ".join(title_parts), title_style),
-        para(f"{phone}  |  {email}  |  {github}  |  {city}", contact_style),
+        para(f"{phone}  |  {email}  |  {linkedin}  |  {github}  |  {city}", contact_style),
         para("  |  ".join(str(skill) for skill in skills[:6]), contact_style),
     ]
 
@@ -707,9 +705,9 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
         ("BOTTOMPADDING", (0, 0), (-1, -1), 1),
     ]))
     main_story.append(skills_table)
-    if courses:
-        add_section("FORMACIÓN COMPLEMENTARIA")
-        for value in courses:
+    if habilidades_blandas:
+        add_section("HABILIDADES BLANDAS")
+        for value in habilidades_blandas[:8]:
             main_story.append(bullet(value, body_style))
     if logros:
         add_section("LOGROS DESTACADOS")
@@ -731,7 +729,7 @@ def build_cv_html(cv_data, profile):
     """Retorna un perfil estructurado para que la capa visual se pueda renderizar sin depender de HTML frágil."""
     merged = _normalize_profile(profile if isinstance(profile, dict) else {})
     if isinstance(cv_data, dict):
-        for field in ("perfil_profesional", "habilidades", "aptitudes", "software", "nuevas_tecnologias", "competencias", "experiencia", "formacion", "cursos", "logros", "intereses", "titulo_objetivo"):
+        for field in ("perfil_profesional", "habilidades", "aptitudes", "software", "nuevas_tecnologias", "competencias", "habilidades_blandas", "experiencia", "formacion", "cursos", "logros", "intereses", "titulo_objetivo"):
             if field in cv_data and cv_data[field]:
                 if field == "perfil_profesional" and isinstance(cv_data[field], dict):
                     merged[field] = {**merged.get(field, {}), **cv_data[field]}

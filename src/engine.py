@@ -366,6 +366,7 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
             "software": adapted.get("software", []),
             "nuevas_tecnologias": adapted.get("nuevas_tecnologias", []),
             "competencias": adapted.get("competencias", []),
+            "habilidades_blandas": profile.get("habilidades_blandas", []),
             "experiencia": adapted["experiencia"],
             "formacion": profile.get("formacion", []),
             "logros": adapted["logros"],
