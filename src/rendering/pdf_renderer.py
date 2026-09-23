@@ -346,6 +346,14 @@ def render_cv_to_pdf_model_legacy(profile_or_html, output_pdf_path):
     skills = profile.get("habilidades", []) or ["Gestión de Proyectos", "Python", "Power BI", "SQL", "ETL", "Machine Learning"]
     aptitudes = profile.get("aptitudes", []) or skills[:7]
     software = profile.get("software", []) or skills[7:19]
+    nuevas_tecnologias = profile.get("nuevas_tecnologias", []) or []
+    if len(software) < 5:
+        software = software + [item for item in skills if item not in software]
+    if len(nuevas_tecnologias) < 3:
+        nuevas_tecnologias = nuevas_tecnologias + [
+            item for item in profile.get("software", [])
+            if item not in nuevas_tecnologias
+        ]
     competencias = profile.get("competencias", []) or skills
     languages = profile.get("idiomas", []) or ["Español - Nativo", "English - Intermedio"]
     training = profile.get("formacion", [])
@@ -504,7 +512,14 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     skills = profile.get("habilidades", []) or ["Gestión de Proyectos", "Python", "Power BI", "SQL", "ETL", "Machine Learning"]
     aptitudes = profile.get("aptitudes", []) or skills[:7]
     software = profile.get("software", []) or skills[7:19]
+    nuevas_tecnologias = profile.get("nuevas_tecnologias", []) or []
     competencias = profile.get("competencias", []) or skills
+    if len(software) < 5:
+        software = software + [item for item in skills if item not in software]
+    if len(nuevas_tecnologias) < 3:
+        nuevas_tecnologias = nuevas_tecnologias + [
+            item for item in software if item not in nuevas_tecnologias
+        ]
     languages = profile.get("idiomas", []) or ["Español - Nativo", "English - Intermedio"]
     training = profile.get("formacion", []) or []
     courses = profile.get("cursos", []) or []
@@ -612,6 +627,9 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
             sidebar_section("SOFTWARE")
             for value in software[:12]:
                 sidebar_flow.append(bullet(value, sidebar_text))
+            sidebar_section("NUEVAS TECNOLOGÍAS")
+            for value in nuevas_tecnologias[:8]:
+                sidebar_flow.append(bullet(value, sidebar_text))
             sidebar_section("IDIOMAS")
             for value in languages[:4]:
                 sidebar_flow.append(para(value, sidebar_text))
@@ -713,7 +731,7 @@ def build_cv_html(cv_data, profile):
     """Retorna un perfil estructurado para que la capa visual se pueda renderizar sin depender de HTML frágil."""
     merged = _normalize_profile(profile if isinstance(profile, dict) else {})
     if isinstance(cv_data, dict):
-        for field in ("perfil_profesional", "habilidades", "aptitudes", "software", "competencias", "experiencia", "formacion", "cursos", "logros", "intereses", "titulo_objetivo"):
+        for field in ("perfil_profesional", "habilidades", "aptitudes", "software", "nuevas_tecnologias", "competencias", "experiencia", "formacion", "cursos", "logros", "intereses", "titulo_objetivo"):
             if field in cv_data and cv_data[field]:
                 if field == "perfil_profesional" and isinstance(cv_data[field], dict):
                     merged[field] = {**merged.get(field, {}), **cv_data[field]}

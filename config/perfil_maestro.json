@@ -56,7 +56,7 @@
         "Informes automatizados de telemetría con archivos Parquet.",
         "Modelo de análisis de desgaste de flota."
       ],
-      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "Machine Learning"],
+      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "Machine Learning", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA"],
       "logros": [
         "Automatización del procesamiento de grandes volúmenes de telemetría con reducción del 65% en tiempo de generación de informes.",
         "Generación de información accionable para consumo energético y operación de flota, logrando una mejora del 28% en la precisión de las proyecciones de consumo.",
@@ -83,7 +83,7 @@
         "Modelos predictivos aplicados a datos deportivos.",
         "Procesos ETL y web scraping para fuentes web."
       ],
-      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "ManyChat", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión"],
+      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "ManyChat", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión", "OpenAI", "Canvas", "Make", "Cloud", "GitHub Copilot", "Claude", "Hugging Face", "Agentes de IA"],
       "logros": [
         "+35% en conversión, -50% en costos de adquisición y 70% de automatización de preguntas frecuentes.",
         "Despliegue de modelos ML en producción mediante APIs y pipelines, alcanzando una precisión del 82% en señales de trading y reducción del 40% en tiempo de procesamiento de datos de mercado.",
@@ -205,7 +205,26 @@
     "Digsilent",
     "PSS/E",
     "PostgreSQL",
-    "Parquet"
+    "Parquet",
+    "Cloud",
+    "GitHub",
+    "GitHub Copilot",
+    "Claude",
+    "OpenAI",
+    "Canvas",
+    "Make",
+    "Hugging Face",
+    "Agentes de IA"
+  ],
+  "nuevas_tecnologias": [
+    "Cloud",
+    "GitHub Copilot",
+    "Claude",
+    "OpenAI",
+    "Canvas",
+    "Make",
+    "Hugging Face",
+    "Agentes de IA"
   ],
   "competencias": [
     "Modelos predictivos",

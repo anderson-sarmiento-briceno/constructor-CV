@@ -67,11 +67,11 @@ def build_local_summary(profile, offer_text, matched_skills, analysis=None):
     roles = [str(item.get("cargo", "")).strip() for item in profile.get("experiencia", []) if item.get("cargo")]
     role_text = ", ".join(roles[:3]) or "experiencia profesional diversa"
     return (
-        f"{profession} con experiencia en {focus_text}, respaldada por conocimientos en {skill_text}. "
-        f"Su trayectoria incluye los roles de {role_text}, con participación en análisis, automatización, "
-        "documentación y mejora de procesos. Integra su formación técnica y experiencia profesional "
-        "para transformar información en resultados útiles, mantener la trazabilidad de los procesos "
-        "y aportar soluciones alineadas con las necesidades del rol."
+        f"Soy {profession} y tengo experiencia en {focus_text}. He trabajado con {skill_text} "
+        f"en roles como {role_text}, participando en análisis, automatización, documentación "
+        "y mejora de procesos. He integrado mi formación técnica con la experiencia profesional "
+        "para transformar información en resultados útiles, mantener la trazabilidad y aportar "
+        "soluciones prácticas a las necesidades del rol."
     )
 
 
@@ -106,7 +106,13 @@ def summary_is_factual(summary, profile, offer_text):
         "perfil maestro", "responsabilidades registradas", "objetivos de la oferta",
         "objetivos del rol", "según la oferta", "alineadas con la oferta",
     )
+    first_person_terms = ("soy ", "tengo ", "he ", "mi experiencia", "mi formación")
+    third_person_terms = ("su trayectoria", "su experiencia", "el candidato", "el profesional")
     if any(term in summary_lower for term in meta_terms):
+        return False
+    if not any(term in summary_lower for term in first_person_terms):
+        return False
+    if any(term in summary_lower for term in third_person_terms):
         return False
     for term in sector_terms:
         if term in summary_lower and term not in profile_text:
@@ -239,6 +245,7 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
         for item in (
             profile.get("aptitudes", [])
             + profile.get("software", [])
+            + profile.get("nuevas_tecnologias", [])
             + profile.get("competencias", [])
             + profile.get("habilidades", [])
             + profile.get("certificaciones", [])
@@ -256,6 +263,29 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
     selected_aptitudes = verified_items(skills_result.get("aptitudes_clave", []))
     selected_tools = verified_items(skills_result.get("herramientas", []))
     selected_competencies = verified_items(skills_result.get("competencias", []))
+    software_source = profile.get("software", [])
+    new_technology_source = profile.get("nuevas_tecnologias", [])
+    matching_software = [
+        item for item in software_source
+        if str(item).casefold() in offer_text.casefold()
+        or any(token.casefold() in offer_text.casefold() for token in str(item).split() if len(token) > 3)
+    ]
+    for item in matching_software + software_source:
+        if item not in selected_tools:
+            selected_tools.append(item)
+        if len(selected_tools) >= 5:
+            break
+    selected_new_technologies = verified_items(skills_result.get("nuevas_tecnologias", []))
+    matching_new = [
+        item for item in new_technology_source
+        if str(item).casefold() in offer_text.casefold()
+        or any(token.casefold() in offer_text.casefold() for token in str(item).split() if len(token) > 3)
+    ]
+    for item in matching_new + new_technology_source:
+        if item not in selected_new_technologies:
+            selected_new_technologies.append(item)
+        if len(selected_new_technologies) >= 3:
+            break
     selected_skills = []
     for item in selected_aptitudes + selected_tools + selected_competencies:
         verified = allowed.get(str(item).strip().casefold())
@@ -289,6 +319,7 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
     adapted["keywords"] = selected_skills
     adapted["aptitudes"] = selected_aptitudes
     adapted["software"] = selected_tools
+    adapted["nuevas_tecnologias"] = selected_new_technologies
     adapted["competencias"] = selected_competencies
 
     source_logros = profile.get("logros", [])
@@ -333,6 +364,7 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
             "habilidades": adapted["keywords"],
             "aptitudes": adapted.get("aptitudes", []),
             "software": adapted.get("software", []),
+            "nuevas_tecnologias": adapted.get("nuevas_tecnologias", []),
             "competencias": adapted.get("competencias", []),
             "experiencia": adapted["experiencia"],
             "formacion": profile.get("formacion", []),

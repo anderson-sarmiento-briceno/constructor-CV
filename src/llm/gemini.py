@@ -255,6 +255,7 @@ def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
     source = json.dumps({
         "aptitudes": profile.get("aptitudes", []),
         "software": profile.get("software", []),
+        "nuevas_tecnologias": profile.get("nuevas_tecnologias", []),
         "competencias": profile.get("competencias", []),
         "habilidades_legacy": profile.get("habilidades", []),
         "certificaciones": profile.get("certificaciones", []),
@@ -262,11 +263,12 @@ def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
     }, ensure_ascii=False)
     prompt = f"""
     Selecciona habilidades para un CV adaptado a una oferta laboral.
-    Devuelve solo JSON con cuatro listas: aptitudes_clave, herramientas, competencias y logros.
+    Devuelve solo JSON con cinco listas: aptitudes_clave, herramientas, nuevas_tecnologias, competencias y logros.
     Usa exclusivamente elementos existentes en la categoría correspondiente de la fuente.
     No inventes ni reformules nombres. Elimina duplicados y ordena por relevancia para la oferta.
     aptitudes_clave debe contener máximo 7 elementos y herramientas máximo 12.
     competencias debe contener máximo 12 elementos.
+    nuevas_tecnologias debe contener máximo 8 elementos y solo puede usar la categoría homónima.
     logros debe contener máximo 5 elementos copiados literalmente de la fuente.
 
     OFERTA:
@@ -279,6 +281,7 @@ def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
     return {
         "aptitudes_clave": result.get("aptitudes_clave", []),
         "herramientas": result.get("herramientas", []),
+        "nuevas_tecnologias": result.get("nuevas_tecnologias", []),
         "competencias": result.get("competencias", []),
         "logros": result.get("logros", []),
     }
@@ -310,13 +313,20 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
         overview["prioridades"] = local_overview["prioridades"]
     summary_prompt = f"""
     Redacta el perfil profesional de un CV para esta oferta.
-    Devuelve SOLO JSON con resumen_profesional de 110 a 150 palabras.
-    Escribe como CV propio, nunca como evaluación ni como explicación del proceso.
+    Devuelve SOLO JSON con resumen_profesional de 90 a 125 palabras.
+    El texto DEBE comenzar con "Soy" o "Tengo" y mantenerse en primera persona durante
+    todo el resumen. Usa formas como "He desarrollado", "He trabajado", "Mi experiencia"
+    y "Puedo aportar". No escribas "Su trayectoria", "su experiencia", "el candidato",
+    "el profesional" ni describas a Anderson desde fuera.
     No uses frases como "perfil maestro", "responsabilidades registradas", "según la
     oferta", "objetivos de la oferta" o "alineado con la oferta". Usa exclusivamente
     hechos del perfil maestro.
     No conviertas el sector o problema de la oferta en experiencia previa. Adapta el foco
     al nivel y prioridades entregados, pero no inventes empresas, cargos, sectores ni métricas.
+    Integra entre dos y cuatro prioridades de la oferta en frases naturales, relacionadas
+    con evidencias reales. No copies listas de responsabilidades ni verbos en infinitivo.
+    No uses una plantilla genérica de "Ingeniero con experiencia en..."; redacta una síntesis
+    personal y concreta que conecte mi experiencia real con esta vacante.
 
     NIVEL Y PRIORIDADES:
     {json.dumps(overview, ensure_ascii=False)}
