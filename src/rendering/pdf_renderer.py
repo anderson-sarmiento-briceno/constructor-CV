@@ -344,6 +344,9 @@ def render_cv_to_pdf_model_legacy(profile_or_html, output_pdf_path):
     )
 
     skills = profile.get("habilidades", []) or ["Gestión de Proyectos", "Python", "Power BI", "SQL", "ETL", "Machine Learning"]
+    aptitudes = profile.get("aptitudes", []) or skills[:7]
+    software = profile.get("software", []) or skills[7:19]
+    competencias = profile.get("competencias", []) or skills
     languages = profile.get("idiomas", []) or ["Español - Nativo", "English - Intermedio"]
     training = profile.get("formacion", [])
     courses = profile.get("cursos", [])
@@ -499,6 +502,9 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
         "Ingeniero eléctrico con experiencia en infraestructura, automatización, análisis de datos y eficiencia energética.",
     )
     skills = profile.get("habilidades", []) or ["Gestión de Proyectos", "Python", "Power BI", "SQL", "ETL", "Machine Learning"]
+    aptitudes = profile.get("aptitudes", []) or skills[:7]
+    software = profile.get("software", []) or skills[7:19]
+    competencias = profile.get("competencias", []) or skills
     languages = profile.get("idiomas", []) or ["Español - Nativo", "English - Intermedio"]
     training = profile.get("formacion", []) or []
     courses = profile.get("cursos", []) or []
@@ -601,10 +607,10 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
             for value in (phone, email, github, city):
                 sidebar_flow.append(para(value, sidebar_text))
             sidebar_section("APTITUDES CLAVE")
-            for value in skills[:7]:
+            for value in aptitudes[:7]:
                 sidebar_flow.append(bullet(value, sidebar_text))
             sidebar_section("SOFTWARE")
-            for value in skills[7:19]:
+            for value in software[:12]:
                 sidebar_flow.append(bullet(value, sidebar_text))
             sidebar_section("IDIOMAS")
             for value in languages[:4]:
@@ -667,7 +673,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
         main_story.append(Spacer(1, 5))
 
     add_section("COMPETENCIAS TÉCNICAS")
-    skill_cells = [bullet(value, body_style) for value in skills]
+    skill_cells = [bullet(value, body_style) for value in competencias[:24]]
     skill_rows = []
     for index in range(0, len(skill_cells), 2):
         row = skill_cells[index:index + 2]
@@ -707,7 +713,7 @@ def build_cv_html(cv_data, profile):
     """Retorna un perfil estructurado para que la capa visual se pueda renderizar sin depender de HTML frágil."""
     merged = _normalize_profile(profile if isinstance(profile, dict) else {})
     if isinstance(cv_data, dict):
-        for field in ("perfil_profesional", "habilidades", "experiencia", "formacion", "cursos", "logros", "intereses", "titulo_objetivo"):
+        for field in ("perfil_profesional", "habilidades", "aptitudes", "software", "competencias", "experiencia", "formacion", "cursos", "logros", "intereses", "titulo_objetivo"):
             if field in cv_data and cv_data[field]:
                 if field == "perfil_profesional" and isinstance(cv_data[field], dict):
                     merged[field] = {**merged.get(field, {}), **cv_data[field]}

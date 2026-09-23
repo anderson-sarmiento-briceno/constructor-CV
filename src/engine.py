@@ -75,6 +75,25 @@ def build_local_summary(profile, offer_text, matched_skills, analysis=None):
     )
 
 
+def select_relevant_logros(profile, offer_text, proposed=None):
+    """Selecciona logros por coincidencia con la oferta, no por posición en el JSON."""
+    source = profile.get("logros", [])
+    offer_words = {
+        word.casefold()
+        for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", offer_text or "")
+    }
+    proposed_map = {str(item).strip().casefold() for item in (proposed or [])}
+    ranked = []
+    for index, logro in enumerate(source):
+        words = re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", str(logro))
+        score = sum(word.casefold() in offer_words for word in words)
+        if str(logro).strip().casefold() in proposed_map:
+            score += 3
+        ranked.append((score, -index, logro))
+    ranked.sort(reverse=True)
+    return [item for score, _, item in ranked[:5] if score > 0] or source[:5]
+
+
 def summary_is_factual(summary, profile, offer_text):
     """Rechaza sectores de la oferta presentados como experiencia no documentada."""
     profile_text = json.dumps(profile, ensure_ascii=False).casefold()
@@ -153,12 +172,7 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
             final_keywords.append(str(keyword).strip())
 
     profile_logros = profile.get("logros", [])
-    selected_logros = [
-        logro for logro in (analysis or {}).get("logros_priorizados", [])
-        if any(str(logro).strip().lower() == str(real).strip().lower() for real in profile_logros)
-    ]
-    if not selected_logros:
-        selected_logros = profile_logros
+    selected_logros = select_relevant_logros(profile, offer_text, (analysis or {}).get("logros_priorizados", []))
 
     profile_responsibilities = [
         exp.get("descripcion", "") for exp in profile.get("experiencia", [])
@@ -222,17 +236,40 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
     skills_result = adapt_skills_to_offer(profile, offer_text, model_name)
     allowed = {
         str(item).strip().casefold(): str(item).strip()
-        for item in profile.get("habilidades", []) + profile.get("certificaciones", [])
+        for item in (
+            profile.get("aptitudes", [])
+            + profile.get("software", [])
+            + profile.get("competencias", [])
+            + profile.get("habilidades", [])
+            + profile.get("certificaciones", [])
+        )
         if str(item).strip()
     }
+    def verified_items(items):
+        selected = []
+        for item in items:
+            verified = allowed.get(str(item).strip().casefold())
+            if verified and verified not in selected:
+                selected.append(verified)
+        return selected
+
+    selected_aptitudes = verified_items(skills_result.get("aptitudes_clave", []))
+    selected_tools = verified_items(skills_result.get("herramientas", []))
+    selected_competencies = verified_items(skills_result.get("competencias", []))
     selected_skills = []
-    for item in skills_result.get("aptitudes_clave", []) + skills_result.get("herramientas", []):
+    for item in selected_aptitudes + selected_tools + selected_competencies:
         verified = allowed.get(str(item).strip().casefold())
         if verified and verified not in selected_skills:
             selected_skills.append(verified)
 
     fallback_skills = []
-    for skill in profile.get("habilidades", []):
+    skill_source = (
+        profile.get("aptitudes", [])
+        + profile.get("software", [])
+        + profile.get("competencias", [])
+        + profile.get("habilidades", [])
+    )
+    for skill in skill_source:
         skill_lower = str(skill).casefold()
         if skill_lower in offer_text.casefold() or any(
             token.casefold() in offer_text.casefold()
@@ -240,7 +277,7 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
             if len(token) > 3
         ):
             fallback_skills.append(skill)
-    for skill in profile.get("habilidades", []):
+    for skill in skill_source:
         if skill not in fallback_skills:
             fallback_skills.append(skill)
 
@@ -250,15 +287,13 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
         if len(selected_skills) >= 14:
             break
     adapted["keywords"] = selected_skills
+    adapted["aptitudes"] = selected_aptitudes
+    adapted["software"] = selected_tools
+    adapted["competencias"] = selected_competencies
 
     source_logros = profile.get("logros", [])
     proposed_logros = skills_result.get("logros", [])
-    source_by_text = {str(item).strip().casefold(): item for item in source_logros}
-    selected_logros = [
-        source_by_text[item.casefold()]
-        for item in proposed_logros
-        if item.casefold() in source_by_text
-    ]
+    selected_logros = select_relevant_logros(profile, offer_text, proposed_logros)
     if selected_logros:
         adapted["logros"] = selected_logros[:5]
     adapted["experiencia"] = adapted_experience
@@ -296,6 +331,9 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
         {
             "perfil_profesional": {"resumen": adapted["summary"]},
             "habilidades": adapted["keywords"],
+            "aptitudes": adapted.get("aptitudes", []),
+            "software": adapted.get("software", []),
+            "competencias": adapted.get("competencias", []),
             "experiencia": adapted["experiencia"],
             "formacion": profile.get("formacion", []),
             "logros": adapted["logros"],

@@ -253,15 +253,20 @@ def adapt_achievements_to_offer(logros, offer_text, model_name="qwen2.5:7b"):
 def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
     """Prioriza habilidades y logros reales en una sola llamada local."""
     source = json.dumps({
-        "habilidades": profile.get("habilidades", []),
+        "aptitudes": profile.get("aptitudes", []),
+        "software": profile.get("software", []),
+        "competencias": profile.get("competencias", []),
+        "habilidades_legacy": profile.get("habilidades", []),
         "certificaciones": profile.get("certificaciones", []),
+        "logros": profile.get("logros", []),
     }, ensure_ascii=False)
     prompt = f"""
     Selecciona habilidades para un CV adaptado a una oferta laboral.
-    Devuelve solo JSON con tres listas: aptitudes_clave, herramientas y logros.
-    Usa exclusivamente elementos existentes en la fuente. No inventes ni reformules
-    nombres de tecnologías. Elimina duplicados y ordena por relevancia para la oferta.
+    Devuelve solo JSON con cuatro listas: aptitudes_clave, herramientas, competencias y logros.
+    Usa exclusivamente elementos existentes en la categoría correspondiente de la fuente.
+    No inventes ni reformules nombres. Elimina duplicados y ordena por relevancia para la oferta.
     aptitudes_clave debe contener máximo 7 elementos y herramientas máximo 12.
+    competencias debe contener máximo 12 elementos.
     logros debe contener máximo 5 elementos copiados literalmente de la fuente.
 
     OFERTA:
@@ -274,6 +279,7 @@ def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
     return {
         "aptitudes_clave": result.get("aptitudes_clave", []),
         "herramientas": result.get("herramientas", []),
+        "competencias": result.get("competencias", []),
         "logros": result.get("logros", []),
     }
 
