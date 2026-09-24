@@ -49,20 +49,23 @@
         "Construcción de informes automatizados sobre datos de telemetría y operación.",
         "Diseño de pipelines ETL desde APIs, Siesa, Excel y Parquet hacia PostgreSQL.",
         "Construcción de dashboards e indicadores operativos en Power BI.",
-        "Análisis de desgaste de flota para apoyar mantenimiento predictivo."
+        "Análisis de desgaste de flota para apoyar mantenimiento predictivo.",
+        "Desarrollo de herramienta en Streamlit para análisis comparativo de rutas del SITP."
       ],
       "proyectos": [
         "Modelo predictivo de consumo energético para certificación ISO 50001.",
         "Informes automatizados de telemetría con archivos Parquet.",
-        "Modelo de análisis de desgaste de flota."
+        "Modelo de análisis de desgaste de flota.",
+        "Herramienta en Streamlit para comparar rutas propias con el sistema SITP usando archivos GeoJSON."
       ],
-      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "Machine Learning", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA"],
+      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "Machine Learning", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA", "Streamlit", "GeoJSON"],
       "logros": [
         "Automatización del procesamiento de grandes volúmenes de telemetría con reducción del 80% en tiempo de generación de informes.",
         "Generación de información accionable para consumo energético y operación de flota, logrando una mejora del 28% en la precisión de las proyecciones de consumo.",
-        "Insumo técnico para certificación ISO 50001 con reducción del 6% en desviaciones de consumo energético real vs. proyectado."
+        "Insumo técnico para certificación ISO 50001 con reducción del 6% en desviaciones de consumo energético real vs. proyectado.",
+        "Desarrollo de una herramienta en Streamlit para comparar  rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas."
       ],
-      "descripcion": "Desarrollé e implementé modelos de análisis predictivo y regresión para caracterizar el consumo energético de una flota de buses eléctricos y generar el insumo técnico requerido para la certificación ISO 50001. Construí informes automatizados de consumo energético a partir de grandes volúmenes de datos de telemetría, incluyendo archivos Parquet y datos operativos de alta frecuencia. Diseñé y desarrollé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión del mantenimiento. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL. Construí dashboards interactivos en Power BI para visualizar consumo energético, operación de flota, indicadores de desempeño y procesos internos, transformando grandes volúmenes de datos en información accionable para la toma de decisiones."
+      "descripcion": "Desarrollé e implementé modelos de análisis predictivo y regresión para caracterizar el consumo energético de una flota de buses eléctricos y generar el insumo técnico requerido para la certificación ISO 50001. Construí informes automatizados de consumo energético a partir de grandes volúmenes de datos de telemetría, incluyendo archivos Parquet y datos operativos de alta frecuencia. Diseñé y desarrollé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión del mantenimiento. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL. Construí dashboards interactivos en Power BI para visualizar consumo energético, operación de flota, indicadores de desempeño y procesos internos, transformando grandes volúmenes de datos en información accionable para la toma de decisiones. Desarrollé una herramienta en Streamlit para comparar 5 rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas."
     },
     {
       "empresa": "Consultor Freelance",
@@ -175,7 +178,9 @@
     "Data Science",
     "Visualización de datos",
     "Automatización de reportes",
-    "Web Automation"
+    "Web Automation",
+    "Streamlit",
+    "GeoJSON"
   ],
   "aptitudes": [
     "Gestión de Proyectos",
@@ -224,7 +229,9 @@
     "Canvas",
     "Make",
     "Hugging Face",
-    "Agentes de IA"
+    "Agentes de IA",
+    "Streamlit",
+    "GeoJSON"
   ],
   "nuevas_tecnologias": [
     "Cloud",
@@ -281,6 +288,7 @@
     "Desarrollo de un modelo de análisis de desgaste de flota para apoyar la identificación de patrones y la gestión predictiva del mantenimiento, mejorando la precisión de predicción de fallas en un 30%.",
     "Pipelines ETL automatizados con Python que unificaron APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL y Power BI, reduciendo el tiempo de integración de datos en un 70%.",
     "Construcción de dashboards interactivos en Power BI para seguimiento de consumo energético, operación de flota e indicadores de desempeño, permitiendo una toma de decisiones 60% más rápida.",
+    "Desarrollo de una herramienta en Streamlit para comparar  rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",
     "Chatbots de ventas con ManyChat + WhatsApp API: +35 % de conversión, -50 % en costo de adquisición y 70 % de preguntas frecuentes automatizadas.",
     "Desarrollo de bots para análisis predictivo de mercados Forex utilizando Python, árboles de regresión y plataforma MetaTrader 5, alcanzando una precisión del 82% en señales de trading.",
     "Desarrollo de modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning, con una mejora del 25% en la tasa de aciertos respecto a modelos baseline.",
@@ -316,6 +324,17 @@
         "Pandas",
         "Scikit-learn",
         "Machine Learning",
+        "Análisis predictivo"
+      ]
+    },
+    {
+      "nombre": "Herramienta en Streamlit para análisis comparativo de rutas SITP",
+      "descripcion": "Desarrollo de una herramienta en Streamlit para comparar  rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",
+      "tecnologias": [
+        "Python",
+        "Streamlit",
+        "GeoJSON",
+        "Pandas",
         "Análisis predictivo"
       ]
     },
