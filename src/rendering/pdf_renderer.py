@@ -662,7 +662,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     main_story = [
         para(full_name.upper(), name_style),
         para("  |  ".join(title_parts), title_style),
-        para(f"{phone}  |  {email}  |  {linkedin}  |  {github}  |  {city}", contact_style),
+        para(f"{phone}  |  {email}  |  LinkedIn: {linkedin}  |  {github}  |  {city}", contact_style),
         para("  |  ".join(str(skill) for skill in skills[:6]), contact_style),
     ]
 

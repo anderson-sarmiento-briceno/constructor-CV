@@ -10,6 +10,66 @@ load_dotenv()
 
 _LAST_OLLAMA_ERROR = ""
 
+_STOPWORDS_ES = {
+    "para", "con", "los", "las", "una", "uno", "del", "que", "por", "como", "sobre",
+    "entre", "desde", "hacia", "sus", "este", "esta", "estos", "estas", "sea", "ser",
+    "más", "debe", "deben", "tiene", "tienen", "será", "serán", "años", "nivel", "rol",
+    "cargo", "empresa", "oferta", "puesto", "vacante", "requisitos", "requisito",
+    "conocimientos", "conocimiento", "experiencia", "trabajo", "equipo", "equipos",
+    "proyectos", "proyecto", "buscamos", "candidato", "candidata", "perfil",
+    "habilidades", "habilidad", "capacidad", "capacidades", "área", "areas", "gestión",
+    "responsable", "funciones", "función", "objetivo", "objetivos", "resultados",
+    "manejo", "conocer", "excelente", "deseable", "indispensable", "importante",
+    "mínimo", "salario", "modalidad", "horario", "beneficios", "ofrecemos",
+}
+
+
+def _significant_terms(text):
+    """Palabras/siglas de 3+ letras relevantes, ignorando conectores comunes."""
+    words = re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}", text or "")
+    return {word.casefold() for word in words if word.casefold() not in _STOPWORDS_ES}
+
+
+def _unevidenced_offer_terms(generated_text, offer_text, source_fact):
+    """Firewall genérico: términos que están en la oferta y en el texto generado,
+    pero no en la fuente real (experiencia), sin importar de qué dominio se trate."""
+    source_text = json.dumps(source_fact, ensure_ascii=False).casefold()
+    offer_terms = _significant_terms(offer_text)
+    generated_terms = _significant_terms(generated_text)
+    candidate_terms = offer_terms & generated_terms
+    return {
+        term for term in candidate_terms
+        if not re.search(r"\b" + re.escape(term) + r"\b", source_text)
+    }
+
+
+def summary_is_factual(summary, profile, offer_text):
+    """Validación equilibrada: exige primera persona y tolera ruido menor, pero
+    rechaza si el resumen trae 2+ términos de la oferta no respaldados por el perfil."""
+    if not summary or len(summary.split()) < 55:
+        return False
+
+    summary_lower = summary.casefold()
+    profile_text = json.dumps(profile, ensure_ascii=False).casefold()
+
+    if not any(term in summary_lower for term in ("soy ", "tengo ", "he ", "mi experiencia", "mi formación")):
+        return False
+    if any(term in summary_lower for term in (
+        "el candidato", "el profesional", "su trayectoria", "según la oferta",
+        "perfil maestro", "responsabilidades registradas", "objetivos de la oferta",
+        "objetivos del rol", "alineadas con la oferta",
+    )):
+        return False
+
+    offer_terms = {term for term in _significant_terms(offer_text) if len(term) >= 4}
+    summary_terms = _significant_terms(summary)
+    invented = [
+        term for term in (offer_terms & summary_terms)
+        if not re.search(r"\b" + re.escape(term) + r"\b", profile_text)
+    ]
+    # Se tolera 1 término suelto (ruido de coincidencia), pero no 2 o más.
+    return len(invented) < 2
+
 
 def _text_response(prompt, model_name):
     response = _call_ollama(prompt, model_name=model_name)
@@ -189,6 +249,20 @@ def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", f
     y directa. Conserva literalmente empresa, cargo, fechas, herramientas, proyectos y
     métricas del texto fuente. No inventes ningún dato. Solo cambia orden, énfasis y
     redacción para conectar con la oferta.
+    Mi único sector real es el que aparece en el texto fuente (ver "sectores"). Sin importar
+    el sector, industria o cargo que mencione la oferta, jamás afirmes que tengo experiencia
+    en ese sector si no coincide con el mío real. En vez de eso, asocia mis herramientas,
+    metodologías y logros reales con lo que pide la oferta, sin nombrar el sector de la oferta
+    como si fuera propio.
+    Cuida la redacción: evita usar la conjunción "y" más de una vez dentro de la misma oración;
+    reestructura con comas o divide en varias oraciones si es necesario.
+
+    REGLA ABSOLUTA DE TRAZABILIDAD: la EXPERIENCIA FUENTE de abajo es la ÚNICA fuente
+    autorizada de hechos (sectores, herramientas, metodologías, resultados). La oferta
+    solo sirve para decidir qué parte de esa experiencia destacar primero; NUNCA es una
+    fuente de hechos. Si una tecnología, sector, metodología o certificación aparece
+    únicamente en la oferta y no en la EXPERIENCIA FUENTE, no la menciones bajo ninguna
+    circunstancia, aunque suene relacionada.
 
     OFERTA:
     {offer_text[:4000]}
@@ -219,11 +293,13 @@ def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", f
         for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{5,}", description)
     }
     source_overlap = len(source_words & description_words)
+    unevidenced_offer_terms = _unevidenced_offer_terms(description, offer_text, experience)
     if (
         len(description.split()) < 25
         or any(phrase in description.casefold() for phrase in evaluator_phrases)
         or any(company.casefold() in description.casefold() for company in forbidden_companies)
         or source_overlap < 3
+        or unevidenced_offer_terms
     ):
         return _local_reorder_experience(experience, offer_text)
     return description
@@ -327,6 +403,21 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     con evidencias reales. No copies listas de responsabilidades ni verbos en infinitivo.
     No uses una plantilla genérica de "Ingeniero con experiencia en..."; redacta una síntesis
     personal y concreta que conecte mi experiencia real con esta vacante.
+    Mis sectores reales son únicamente los que aparecen en las experiencias del perfil
+    maestro (campo "sectores"). Sin importar qué sector, industria o rubro mencione la
+    oferta (crédito, salud, retail, banca, logística, etc.), NUNCA afirmes tener experiencia
+    en un sector distinto al mío real. En su lugar, conecta la oferta con mis técnicas,
+    herramientas y logros reales, sin nombrar el sector de la oferta como propio.
+    Evita repetir la conjunción "y" dentro de una misma oración; varía la redacción.
+
+    REGLA ABSOLUTA DE TRAZABILIDAD: el perfil maestro es la ÚNICA fuente autorizada para
+    afirmar experiencia, conocimientos, sectores, herramientas o resultados del candidato.
+    La oferta NO es una fuente de experiencia, solo sirve para priorizar qué contar primero.
+    Distingue siempre entre "requisito de la oferta" y "evidencia del candidato": solo puedes
+    afirmar algo si existe evidencia literal en el perfil maestro. Si una tecnología, sector,
+    metodología o certificación aparece solo en la oferta, NO la incorpores como experiencia
+    propia, aunque el tema parezca similar (por ejemplo, "mercados financieros" no equivale a
+    "crédito" ni a "riesgo financiero"; no hagas inferencias por semejanza semántica).
 
     NIVEL Y PRIORIDADES:
     {json.dumps(overview, ensure_ascii=False)}
@@ -336,8 +427,18 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     """
     summary_result = _text_response(summary_prompt, model_name)
     generated_summary = str(summary_result.get("resumen_profesional", "")).strip()
-    if len(generated_summary.split()) < 60:
-        generated_summary = ""
+    if not summary_is_factual(generated_summary, profile, offer_text):
+        retry_prompt = summary_prompt + """
+
+    IMPORTANTE: el intento anterior pudo haber incluido información no respaldada por
+    el perfil maestro. Esta vez sé aún más estricto: usa ÚNICAMENTE lo que está escrito
+    literalmente en el PERFIL MAESTRO. Si la oferta pide algo que no tengo documentado,
+    simplemente no lo menciones.
+    """
+        summary_result = _text_response(retry_prompt, model_name)
+        generated_summary = str(summary_result.get("resumen_profesional", "")).strip()
+        if not summary_is_factual(generated_summary, profile, offer_text):
+            generated_summary = ""
 
     active_model = os.getenv("OLLAMA_MODEL", model_name)
     detected_role = overview.get("cargo_detectado", "NO_EVIDENCIADO")

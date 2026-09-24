@@ -8,7 +8,12 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.extraction.word_reader import extract_text_from_docx
-from src.llm.gemini import adapt_experience_to_offer, adapt_skills_to_offer, analyze_offer_and_profile
+from src.llm.gemini import (
+    adapt_experience_to_offer,
+    adapt_skills_to_offer,
+    analyze_offer_and_profile,
+    summary_is_factual,
+)
 from src.matching.matcher import classify_requirements
 from src.rendering.pdf_renderer import build_cv_html, render_cv_to_pdf_model
 from src.validation.validation import validate_claims_against_profile
@@ -94,30 +99,6 @@ def select_relevant_logros(profile, offer_text, proposed=None):
     return [item for score, _, item in ranked[:5] if score > 0] or source[:5]
 
 
-def summary_is_factual(summary, profile, offer_text):
-    """Rechaza sectores de la oferta presentados como experiencia no documentada."""
-    profile_text = json.dumps(profile, ensure_ascii=False).casefold()
-    summary_lower = summary.casefold()
-    sector_terms = (
-        "fintech", "financiero", "financiera", "cobranzas", "cobranza",
-        "riesgo de crédito", "riesgo crediticio", "banca", "bancario",
-    )
-    meta_terms = (
-        "perfil maestro", "responsabilidades registradas", "objetivos de la oferta",
-        "objetivos del rol", "según la oferta", "alineadas con la oferta",
-    )
-    first_person_terms = ("soy ", "tengo ", "he ", "mi experiencia", "mi formación")
-    third_person_terms = ("su trayectoria", "su experiencia", "el candidato", "el profesional")
-    if any(term in summary_lower for term in meta_terms):
-        return False
-    if not any(term in summary_lower for term in first_person_terms):
-        return False
-    if any(term in summary_lower for term in third_person_terms):
-        return False
-    for term in sector_terms:
-        if term in summary_lower and term not in profile_text:
-            return False
-    return True
 
 
 def adapt_profile_to_offer(profile, offer_text, analysis=None):
