@@ -67,8 +67,9 @@ def summary_is_factual(summary, profile, offer_text):
         term for term in (offer_terms & summary_terms)
         if not re.search(r"\b" + re.escape(term) + r"\b", profile_text)
     ]
-    # Se tolera 1 término suelto (ruido de coincidencia), pero no 2 o más.
-    return len(invented) < 2
+    # Cero tolerancia: cualquier término de la oferta no respaldado literalmente
+    # en el perfil maestro invalida el resumen.
+    return len(invented) == 0
 
 
 def _text_response(prompt, model_name):
@@ -417,7 +418,7 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     afirmar algo si existe evidencia literal en el perfil maestro. Si una tecnología, sector,
     metodología o certificación aparece solo en la oferta, NO la incorpores como experiencia
     propia, aunque el tema parezca similar (por ejemplo, "mercados financieros" no equivale a
-    "crédito" ni a "riesgo financiero"; no hagas inferencias por semejanza semántica).
+    "crédito" ni a "riesgo financiero" "Azure" "Databricks" "Data Lake" "Lakehouse"; no hagas inferencias por semejanza semántica).
 
     NIVEL Y PRIORIDADES:
     {json.dumps(overview, ensure_ascii=False)}

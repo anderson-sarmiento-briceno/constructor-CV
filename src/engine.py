@@ -13,6 +13,7 @@ from src.llm.gemini import (
     adapt_skills_to_offer,
     analyze_offer_and_profile,
     summary_is_factual,
+    _significant_terms,
 )
 from src.matching.matcher import classify_requirements
 from src.rendering.pdf_renderer import build_cv_html, render_cv_to_pdf_model
@@ -58,7 +59,17 @@ def build_local_summary(profile, offer_text, matched_skills, analysis=None):
     if "energia" in offer_lower or "energía" in offer_lower:
         focus.append("gestión energética")
     analyzed_level = str((analysis or {}).get("nivel_ajuste", "")).casefold()
-    analyzed_priorities = [str(item) for item in (analysis or {}).get("palabras_clave", [])]
+    profile_text = json.dumps(profile, ensure_ascii=False).casefold()
+    raw_priorities = [str(item) for item in (analysis or {}).get("palabras_clave", [])]
+    # Las prioridades vienen del análisis de LA OFERTA, no del perfil: solo se aceptan
+    # si todos sus términos relevantes están respaldados literalmente en el perfil maestro.
+    analyzed_priorities = [
+        item for item in raw_priorities
+        if _significant_terms(item) and all(
+            re.search(r"\b" + re.escape(term) + r"\b", profile_text)
+            for term in _significant_terms(item)
+        )
+    ]
     junior_offer = analyzed_level == "junior" or any(term in offer_lower for term in ("junior", "recién egresado", "básico", "bajo supervisión", "inicial"))
     advanced_offer = analyzed_level == "avanzado" or any(term in offer_lower for term in ("analítica avanzada", "machine learning", "mlops", "producción", "inteligencia artificial", "modelos predictivos"))
     if junior_offer:
