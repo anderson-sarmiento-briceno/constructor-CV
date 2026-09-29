@@ -1,56 +1,151 @@
-# CV Dinámico Personalizado por Oferta
+# CV Dinámico con IA Local
 
-Proyecto para generar CVs personalizados orientados a una oferta laboral, usando una base maestra de información del candidato y validación anti-alucinación.
+Generador de currículos personalizados por oferta laboral, construido para convertir
+una oferta en Word y un perfil profesional maestro en un PDF claro, orientado a ATS y
+adaptado al contexto de cada vacante.
 
-## Objetivo
+> **Personalizar no es inventar.** La oferta decide qué experiencia real destacar;
+> el perfil maestro sigue siendo la única fuente autorizada de hechos.
 
-- Extraer requisitos de una oferta en Word.
-- Compararlos con un perfil maestro.
-- Priorizar experiencia real relevante.
-- Redactar un CV adaptado sin inventar hechos.
-- Exportar a PDF ATS-friendly.
+![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
+![Ollama](https://img.shields.io/badge/LLM-Ollama-black?logo=ollama&logoColor=white)
+![Model](https://img.shields.io/badge/Model-qwen2.5%3A7b-2E6572)
+![Tests](https://img.shields.io/badge/tests-7%20passing-2E7D32)
+![License](https://img.shields.io/badge/status-personal%20project-173F4F)
 
-## Estructura
+## Qué resuelve
 
-- `CVS/`: currículos históricos y documentos de respaldo.
-- `ofertas/`: ofertas en formato `.docx`.
-- `src/`: lógica del extractor, matching y validación.
-- `tests/`: pruebas para la validación base.
+Adaptar manualmente un CV para cada oferta suele producir documentos repetitivos,
+desordenados o, peor aún, afirmaciones que el candidato no puede demostrar. Este
+proyecto automatiza la adaptación sin perder trazabilidad:
+
+- Lee ofertas laborales en formato `.docx`.
+- Analiza cargo, seniority, prioridades y requisitos.
+- Compara la oferta contra un perfil maestro estructurado en JSON.
+- Prioriza habilidades, proyectos, experiencias y logros relevantes.
+- Usa Ollama local para mejorar la redacción y el enfoque del CV.
+- Rechaza contenido no respaldado y activa un fallback factual cuando es necesario.
+- Genera un PDF profesional con diseño fijo y contenido adaptable.
+
+## Flujo del sistema
+
+```mermaid
+flowchart LR
+	A[Oferta .docx] --> B[Extracción de texto]
+	C[Perfil maestro JSON] --> D[Motor de trazabilidad]
+	B --> E[Análisis de la oferta]
+	D --> E
+	E --> F[Ollama local]
+	F --> G[Validación de hechos]
+	G -->|Válido| H[Contenido adaptado]
+	G -->|No válido| I[Fallback factual]
+	I --> H
+	H --> J[Render PDF ATS-friendly]
+```
+
+## Arquitectura
+
+```text
+config/perfil_maestro.json  Fuente única de datos profesionales
+ofertas/*.docx              Ofertas que se quieren analizar
+src/extraction/             Lectura de documentos Word
+src/llm/                    Prompts, Ollama y validación de respuestas
+src/matching/               Comparación de requisitos y habilidades
+src/validation/             Validación de afirmaciones contra el perfil
+src/rendering/              Renderizado del PDF y plantilla visual
+src/engine.py               Orquestación del flujo completo
+tests/                      Pruebas automatizadas
+output/pdf/                 CVs generados
+```
+
+## Principio de trazabilidad
+
+El sistema separa tres conceptos:
+
+| Fuente | Puede hacer | No puede hacer |
+| --- | --- | --- |
+| Perfil maestro | Definir experiencia, herramientas, proyectos, fechas y métricas | Ser alterado por una oferta |
+| Oferta laboral | Priorizar énfasis, orden y palabras clave existentes | Convertirse en experiencia del candidato |
+| Ollama | Mejorar redacción y adaptar el foco | Inventar cargos, sectores, tecnologías o resultados |
+
+Antes de aceptar una respuesta del modelo se revisa, entre otros aspectos:
+
+- primera persona y tono profesional;
+- ausencia de frases meta o referencias al candidato desde fuera;
+- coincidencia con la experiencia fuente;
+- empresas y organizaciones no inventadas;
+- tecnologías y dominios no introducidos desde la oferta;
+- uso del pasado para experiencias finalizadas;
+- fallback al texto factual del perfil si la respuesta no es confiable.
 
 ## Requisitos
 
-```bash
+- Python 3.13 o compatible.
+- Ollama instalado y ejecutándose localmente.
+- Modelo `qwen2.5:7b` descargado.
+
+Instalar dependencias:
+
+```powershell
 pip install -r requirements.txt
 ```
 
-También se requiere [Ollama](https://ollama.com/) ejecutándose en Windows y el
-modelo local configurado para este proyecto:
+Preparar Ollama:
 
 ```powershell
 ollama pull qwen2.5:7b
 ollama serve
 ```
 
-El motor envía a Ollama únicamente texto: la oferta extraída del `.docx` y el
-perfil maestro serializado como JSON. No se envían archivos PDF, Word ni fotos.
+El proyecto puede configurarse mediante `.env`:
 
-## Generar CVs
+```env
+OLLAMA_HOST=http://127.0.0.1:11434
+OLLAMA_MODEL=qwen2.5:7b
+OLLAMA_TIMEOUT=75
+```
 
-Con Ollama ejecutándose y el modelo descargado:
+## Uso
+
+1. Coloca una o varias ofertas `.docx` en `ofertas/`.
+2. Actualiza los datos reales en `config/perfil_maestro.json`.
+3. Asegúrate de que Ollama esté ejecutándose.
+4. Genera los CVs:
 
 ```powershell
 python src/engine.py
 ```
 
-El resultado se crea en `output/pdf/`. La salida de consola indica si respondió
-`ollama-qwen2.5:7b` o si se usó el fallback local.
+Los archivos se guardan en `output/pdf/`. La salida de consola informa el cargo
+detectado, el modelo utilizado, el nivel del rol y los bloques adaptados.
 
-## Ejecutar pruebas
+## Pruebas
 
-```bash
+Ejecutar toda la suite:
+
+```powershell
 pytest -q
 ```
 
-## Nota
+Ejecutar las pruebas rápidas sin el caso de generación batch contra Ollama:
 
-Este primer scaffold implementa la base del motor de validación anti-alucinación y la estructura inicial del proyecto. La siguiente fase es integrar extracción de `.docx`, matching semántico y generación del CV final.
+```powershell
+pytest -q -k "not test_generate_all_cv_for_offers_processes_batch"
+```
+
+## Privacidad y diseño
+
+La inferencia se ejecuta con Ollama en el equipo local. El motor envía al modelo
+texto extraído de la oferta y el perfil maestro serializado como JSON; no envía
+archivos Word, PDFs ni fotografías al servicio de un proveedor externo.
+
+La plantilla visual del CV permanece estable para que cada oferta cambie el contenido
+y el énfasis, no la identidad del documento. El resultado conserva una estructura de
+dos columnas, secciones legibles y un formato adecuado para revisión humana y ATS.
+
+## Estado del proyecto
+
+Proyecto personal funcional para generación de CVs dinámicos con IA local. Las áreas
+principales de evolución son mejorar la evaluación semántica de requisitos, ampliar
+la cobertura de pruebas de generación y añadir una interfaz de usuario para ejecutar
+el flujo sin comandos.
