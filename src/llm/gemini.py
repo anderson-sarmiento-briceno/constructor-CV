@@ -78,21 +78,8 @@ def _text_response(prompt, model_name):
 
 
 def _local_reorder_experience(experience, offer_text):
-    """Reordena frases existentes por coincidencia con la oferta, sin inventar contenido."""
-    description = str(experience.get("descripcion", "")).strip()
-    sentences = [item.strip() for item in re.split(r"(?<=[.!?])\s+", description) if item.strip()]
-    offer_words = {
-        word.casefold()
-        for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", offer_text or "")
-    }
-    ranked = sorted(
-        enumerate(sentences),
-        key=lambda item: (
-            -sum(word.casefold() in offer_words for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", item[1])),
-            item[0],
-        ),
-    )
-    return " ".join(sentence for _, sentence in ranked)
+    """Devuelve la descripción fuente en su orden original como fallback factual."""
+    return str(experience.get("descripcion", "")).strip()
 
 
 def _extract_role_from_offer(offer_text):
@@ -237,6 +224,20 @@ def _call_ollama(
 _call_gemini = _call_ollama
 
 
+def _uses_present_tense_for_completed_role(description, experience):
+    dates = str(experience.get("fechas", "")).casefold()
+    if not dates or any(marker in dates for marker in ("actualidad", "presente", "current", "present")):
+        return False
+    present_forms = {
+        "planifico", "diseño", "ejecuto", "lidero", "dirijo", "desarrollo", "implemento",
+        "construyo", "utilizo", "realizo", "participo", "integro", "analizo", "gestiono",
+        "coordino", "construye", "desarrolla", "implementa", "utiliza", "realiza",
+        "participa", "integra", "lidera", "dirige", "planifica", "ejecuta",
+    }
+    words = {word.casefold() for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]+", description)}
+    return bool(words & present_forms)
+
+
 def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", forbidden_companies=None):
     """Reescribe una experiencia real para la oferta sin alterar sus hechos."""
     source = json.dumps(experience, ensure_ascii=False)
@@ -248,8 +249,15 @@ def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", f
     Escribe entre 80 y 130 palabras, con tono profesional natural de CV, sin hablar de
     'el candidato', 'el perfil' ni de la evaluación. Redacta como una descripción propia
     y directa. Conserva literalmente empresa, cargo, fechas, herramientas, proyectos y
-    métricas del texto fuente. No inventes ningún dato. Solo cambia orden, énfasis y
-    redacción para conectar con la oferta.
+    métricas del texto fuente. No inventes ningún dato. Mantén el orden lógico de las
+    ideas de la experiencia fuente: alcance y liderazgo, proyectos y resultados, luego
+    herramientas y responsabilidades complementarias. No pongas la conclusión al inicio
+    ni dejes una oración o idea inconclusa al final. Puedes mejorar la redacción y destacar
+    lo más pertinente, pero no reordenes las ideas ni cambies su sentido.
+    TIEMPO VERBAL: la experiencia está fechada {experience.get('fechas', '')}. Si ya terminó,
+    redacta funciones y logros en pasado ("planifiqué", "dirigí", "desarrollé",
+    "implementé", "participé"). No uses presente ("planifico", "dirijo", "desarrollo",
+    "implemento") ni mezcles tiempos verbales. Usa presente solo si el empleo sigue vigente.
     Mi único sector real es el que aparece en el texto fuente (ver "sectores"). Sin importar
     el sector, industria o cargo que mencione la oferta, jamás afirmes que tengo experiencia
     en ese sector si no coincide con el mío real. En vez de eso, asocia mis herramientas,
@@ -301,6 +309,7 @@ def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", f
         or any(company.casefold() in description.casefold() for company in forbidden_companies)
         or source_overlap < 3
         or unevidenced_offer_terms
+        or _uses_present_tense_for_completed_role(description, experience)
     ):
         return _local_reorder_experience(experience, offer_text)
     return description
