@@ -14,6 +14,7 @@ from src.llm.gemini import (
     adapt_skills_to_offer,
     analyze_offer_and_profile,
     summary_is_factual,
+    polish_text_with_ollama,
     _significant_terms,
 )
 from src.matching.matcher import classify_requirements
@@ -91,17 +92,47 @@ def _dedupe_terms(text):
     return {_dedupe_normalize(term) for term in _dedupe_words(text)}
 
 
+def _join_list_naturally(items):
+    """Une una lista de elementos como enumeración en español: coma entre los
+    primeros y "y" antes del último (evita listas que terminan en seco con coma).
+    Si el último elemento ya trae su propia conjunción "y" (frase ya natural),
+    no se agrega una segunda para no duplicarla."""
+    if len(items) <= 1:
+        return ", ".join(items)
+    if re.search(r"\by\b", items[-1], flags=re.IGNORECASE):
+        return ", ".join(items)
+    return ", ".join(items[:-1]) + " y " + items[-1]
+
+
+def _final_text_cleanup(text):
+    """Limpieza final segura: palabras contiguas repetidas y espacios/puntuación
+    sobrantes que puedan quedar tras depurar redundancias."""
+    text = re.sub(r"\b(\w+)\s+\1\b", r"\1", text, flags=re.IGNORECASE)
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"\s+([,.])", r"\1", text)
+    text = re.sub(r",\s*,+", ",", text)
+    text = re.sub(r",\s*\.", ".", text)
+    text = re.sub(r"\.\s*\.+", ".", text)
+    return text.strip()
+
+
 def polish_summary_text(summary):
     """Revisa el resumen YA generado (por Ollama o por el fallback local) y elimina
     redundancias de redacción sin tocar hechos ni reglas de validación: si un término
     significativo ya fue mencionado antes en el texto (en cualquier oración anterior,
     incluyendo variantes de plural/acento), se quita su repetición posterior dentro
     de una lista separada por comas (ej. "...modelos predictivos..." y más adelante
-    "...automatizaciones, Modelos Predictivos..." -> la segunda mención se depura)."""
+    "...automatizaciones, Modelos Predictivos..." -> la segunda mención se depura).
+    Solo quita duplicados COMPLETOS (todas sus palabras ya mencionadas antes); si un
+    elemento aporta aunque sea una palabra nueva, se conserva para no perder información."""
     if not summary:
         return summary
 
-    seen_terms = set()
+    term_counts = {}
+
+    def register_terms(terms):
+        for term in terms:
+            term_counts[term] = term_counts.get(term, 0) + 1
 
     def dedupe_comma_list(match):
         items = [piece.strip() for piece in match.group(1).split(",")]
@@ -112,13 +143,18 @@ def polish_summary_text(summary):
             if index == 0:
                 lead, working_item = _split_list_lead_in(item)
             terms = _dedupe_terms(working_item)
-            if terms and terms <= seen_terms:
+            if not terms:
+                kept.append(working_item)
                 continue
-            seen_terms.update(terms)
+            # Duplicado completo: todas las palabras del elemento ya se mencionaron
+            # antes, por lo que no aporta información nueva.
+            if all(term_counts.get(term, 0) > 0 for term in terms):
+                continue
+            register_terms(terms)
             kept.append(working_item)
         if lead:
             kept = [lead] if not kept else [f"{lead} {kept[0]}", *kept[1:]]
-        return ", ".join(kept) if kept else match.group(1)
+        return _join_list_naturally(kept) if kept else match.group(1)
 
     # Depura cada lista separada por comas dentro de cada oración, acumulando los
     # términos ya mencionados en oraciones anteriores del mismo resumen (incluso si
@@ -127,9 +163,12 @@ def polish_summary_text(summary):
     cleaned_sentences = []
     for sentence in sentences:
         cleaned = re.sub(r"([^.!?]*,[^.!?]*)", dedupe_comma_list, sentence, count=1)
-        seen_terms.update(_dedupe_terms(sentence))
+        if "," not in sentence:
+            # Sin comas no hay lista que depurar: igual se registran sus términos
+            # para que oraciones futuras sepan que ya se mencionaron.
+            register_terms(_dedupe_terms(sentence))
         cleaned_sentences.append(cleaned)
-    return " ".join(cleaned_sentences)
+    return _final_text_cleanup(" ".join(cleaned_sentences))
 
 
 def build_local_summary(profile, offer_text, matched_skills, analysis=None):
@@ -299,8 +338,11 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
     summary_origin = (analysis or {}).get("resumen_origen")
     if not summary_origin:
         summary_origin = "ollama" if gemini_summary and summary == gemini_summary else "fallback_local"
-    # Paso final, aplicado sobre el resumen ya definitivo (venga de Ollama o del
-    # fallback): solo pule redacción/redundancia, no cambia hechos ni reglas de validación.
+    # Pulido de redundancia, aplicado sobre el resumen ya definitivo (venga de
+    # Ollama o del fallback). Es local y no llama a Ollama, por lo que es seguro
+    # para tests unitarios. La reescritura con Ollama (fluidez/sonoridad) se aplica
+    # aparte, en el pipeline completo de generación (generate_cv_pdf_for_offer),
+    # para no introducir llamadas de red dentro de esta función pura.
     summary = polish_summary_text(summary)
     gemini_keywords = []
     for suggestion in (analysis or {}).get("palabras_clave", []):
@@ -587,6 +629,10 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
     adapted["analysis_priorities"] = analysis.get("palabras_clave", [])
     forbidden_companies = extract_offer_organizations(offer_text, offer_name)
     adapted = adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies)
+    # Reescritura final con Ollama: mejora fluidez/sonoridad del resumen ya aceptado,
+    # sin recortar información (resguardo de longitud) ni inventar datos (resguardo
+    # de veracidad). Si falla o recorta de más, se conserva el resumen tal como estaba.
+    adapted["summary"] = polish_text_with_ollama(adapted["summary"], profile=profile, offer_text=offer_text)
     analysis["bloques_adaptados"] = adapted.get("bloques_ollama", 0)
     analysis["reporte_adaptacion"] = adapted.get("reporte_adaptacion", {})
 

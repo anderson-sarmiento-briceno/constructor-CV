@@ -57,7 +57,9 @@ def _summary_validation_issues(summary, profile, offer_text):
     if any(term in summary_lower for term in (
         "el candidato", "el profesional", "su trayectoria", "según la oferta",
         "perfil maestro", "responsabilidades registradas", "objetivos de la oferta",
-        "objetivos del rol", "alineadas con la oferta",
+        "objetivos del rol", "alineadas con la oferta", "para el puesto de",
+        "ajustado al perfil", "alinea con los requisitos", "como se solicita",
+        "mi perfil se adapta",
     )):
         issues.append("contiene frases meta o tercera persona")
 
@@ -75,6 +77,54 @@ def _summary_validation_issues(summary, profile, offer_text):
 def summary_is_factual(summary, profile, offer_text):
     """Valida primera persona y rechaza varias afirmaciones sin respaldo literal."""
     return not _summary_validation_issues(summary, profile, offer_text)
+
+
+def polish_text_with_ollama(text, model_name="qwen2.5:7b", profile=None, offer_text=""):
+    """Pide a Ollama reescribir el texto (fluidez/sonoridad), SIN resumir ni quitar
+    información. Si el resultado recorta más del 15% de las palabras originales, o
+    si introduce afirmaciones sin respaldo en el perfil, se descarta y se devuelve
+    el texto original tal cual."""
+    if not text or len(text.strip()) < 10:
+        return text
+
+    prompt = f"""
+    Tu ÚNICA tarea es reescribir el siguiente texto para mejorar su fluidez
+    gramatical, elegancia y sonoridad profesional en español, SIN REDUCIR SU
+    LONGITUD NI ELIMINAR INFORMACIÓN.
+    Devuelve SOLO JSON con la clave "texto_pulido".
+
+    REGLAS ESTRICTAS:
+    1. PRESERVACIÓN TOTAL DE CONTENIDO: conserva el 100% de los datos, herramientas
+       tecnológicas, números, fechas, nombres de empresas y métricas. No omitas
+       ningún detalle.
+    2. CONSERVACIÓN DE LONGITUD: el texto resultante debe tener aproximadamente la
+       misma cantidad de palabras que el original (no resumas, no recortes).
+    3. MEJORA SINTÁCTICA: cambia conectores repetitivos, corrige errores
+       gramaticales y reemplaza palabras idénticas cercanas por sinónimos precisos
+       del mismo nivel técnico.
+    4. VOZ Y PERSONA: mantén estrictamente la primera persona del singular
+       ("Lideré", "Desarrollé", "Cuento con").
+    5. SIN METATEXTO: no agregues introducciones, comentarios ni comillas extra.
+
+    TEXTO A PULIR:
+    {text}
+    """
+    result = _text_response(prompt, model_name)
+    polished = str(result.get("texto_pulido", "")).strip().strip('"')
+    if not polished:
+        return text
+
+    original_words = len(text.split())
+    polished_words = len(polished.split())
+    if polished_words < original_words * 0.85:
+        # Recortó demasiado: priorizamos conservar la información sobre la fluidez.
+        return text
+
+    if profile is not None and not summary_is_factual(polished, profile, offer_text):
+        # La reescritura introdujo algo sin respaldo en el perfil maestro.
+        return text
+
+    return polished
 
 
 def _text_response(prompt, model_name):
@@ -299,6 +349,8 @@ def adapt_experience_to_offer(
         "el candidato", "el perfil", "nivel de ajuste", "se ajusta a la oferta",
            "en rapicredit", "en esta empresa", "apoyaré", "implementaré", "contribuiré",
            "pasantía", "pasantia", "pasante", "internship", "práctica profesional", "practica profesional",
+           "para el puesto de", "ajustado al perfil", "alinea con los requisitos",
+           "como se solicita", "mi perfil se adapta",
     )
     source_words = {
         word.casefold()
