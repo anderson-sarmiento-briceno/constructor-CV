@@ -78,13 +78,30 @@ def build_local_summary(profile, offer_text, matched_skills, analysis=None):
         focus.extend(["modelado predictivo", "automatización analítica", "despliegue de soluciones de datos"])
     if analyzed_priorities:
         focus.extend(item for item in analyzed_priorities[:3] if item.casefold() not in {value.casefold() for value in focus})
+    focus = [
+        item for item in focus
+        if not any(
+            item.casefold() in other.casefold() and len(other) > len(item)
+            for other in focus
+        )
+    ]
     focus_text = ", ".join(focus) or "optimización de procesos"
-    skill_text = ", ".join(str(item) for item in matched_skills[:6]) or "las competencias registradas"
-    roles = [str(item.get("cargo", "")).strip() for item in profile.get("experiencia", []) if item.get("cargo")]
-    role_text = ", ".join(roles[:3]) or "experiencia profesional diversa"
+    skill_candidates = list(dict.fromkeys(
+        str(item).strip() for item in matched_skills if str(item).strip()
+    ))
+    unique_skills = [
+        skill for skill in skill_candidates
+        if not any(
+            len(skill.split()) == 1
+            and re.search(r"\b" + re.escape(skill) + r"\b", other, flags=re.IGNORECASE)
+            for other in skill_candidates
+            if other.casefold() != skill.casefold()
+        )
+    ]
+    skill_text = ", ".join(unique_skills[:6]) or "las competencias registradas"
     return (
         f"Soy {profession} y tengo experiencia en {focus_text}. He trabajado con {skill_text} "
-        f"en roles como {role_text}, participando en análisis, automatización, documentación "
+        "en proyectos de datos e infraestructura eléctrica, participando en análisis, documentación "
         "y mejora de procesos. He integrado mi formación técnica con la experiencia profesional "
         "para transformar información en resultados útiles, mantener la trazabilidad y aportar "
         "soluciones prácticas a las necesidades del rol."
@@ -112,33 +129,71 @@ def select_relevant_logros(profile, offer_text, proposed=None):
 
 
 
+def _priority_match_report(text, priorities):
+    unique_priorities = list(dict.fromkeys(
+        str(item).strip() for item in priorities if str(item).strip()
+    ))
+    text_terms = _significant_terms(text or "")
+    matched = []
+    unmatched = []
+    for priority in unique_priorities:
+        priority_terms = _significant_terms(priority)
+        overlap = priority_terms & text_terms
+        threshold = max(1, (len(priority_terms) + 1) // 2)
+        (matched if len(overlap) >= threshold else unmatched).append(priority)
+    total = len(unique_priorities)
+    return {
+        "porcentaje": round(len(matched) * 100 / total) if total else None,
+        "coincidencias": len(matched),
+        "requisitos": total,
+    }
+
+
+def _short_reason(reasons, max_length=90):
+    if not reasons:
+        return ""
+    reason = str(reasons[0]).split(":", 1)[0].strip()
+    return reason[:max_length]
+
+
+def _match_label(report):
+    if not report or report.get("porcentaje") is None:
+        return "0/0 (N/D)"
+    return f"{report.get('coincidencias', 0)}/{report.get('requisitos', 0)} ({report['porcentaje']}%)"
+
+
 def adapt_profile_to_offer(profile, offer_text, analysis=None):
     """Adapta el resumen, prioridad de habilidades y experiencia a cualquier oferta sin inventar hechos."""
     offer_lower = (offer_text or "").lower()
 
     profile_skills = profile.get("habilidades", [])
-    matched_keywords = []
-    for skill in profile_skills:
-        skill_lower = skill.lower()
-        if skill_lower in offer_lower or any(token.lower() in offer_lower for token in skill.split()):
-            matched_keywords.append(skill)
+    offer_terms = _significant_terms(offer_text or "")
+    ranked_skills = sorted(
+        [
+            (
+                int(str(skill).strip().casefold() in offer_lower),
+                offer_lower.find(str(skill).strip().casefold())
+                if str(skill).strip().casefold() in offer_lower
+                else -len(_significant_terms(str(skill)) & offer_terms),
+                index,
+                skill,
+            )
+            for index, skill in enumerate(profile_skills)
+        ],
+        key=lambda item: (-item[0], item[1], item[2]),
+    )
+    matched_keywords = [skill for exact, relevance, _, skill in ranked_skills if exact or relevance < 0]
 
-    if not matched_keywords:
-        matched_keywords = profile_skills[:10]
-
-    def experience_start_year(experience, fallback_index):
+    def experience_end_year(experience, fallback_index):
         dates = str(experience.get("fechas", ""))
-        match = re.search(r"(?:19|20)\d{2}", dates)
-        if match:
-            return 0, -int(match.group(0)), fallback_index
-        experience_text = " ".join(str(value) for value in experience.values()).lower()
-        relevance = sum(1 for token in offer_lower.split() if len(token) > 3 and token in experience_text)
-        return 1, -relevance, fallback_index
+        years = re.findall(r"(?:19|20)\d{2}", dates)
+        end_year = int(years[-1]) if years else 0
+        return -end_year, fallback_index
 
     ordered_experience = [
         item for _, item in sorted(
             enumerate(profile.get("experiencia", [])),
-            key=lambda pair: experience_start_year(pair[1], pair[0]),
+            key=lambda pair: experience_end_year(pair[1], pair[0]),
         )
     ]
 
@@ -153,8 +208,9 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
     else:
         gemini_summary = ""
         summary = build_local_summary(profile, offer_text, matched_keywords, analysis)
-    ordered_keywords = profile_skills
-
+    summary_origin = (analysis or {}).get("resumen_origen")
+    if not summary_origin:
+        summary_origin = "ollama" if gemini_summary and summary == gemini_summary else "fallback_local"
     gemini_keywords = []
     for suggestion in (analysis or {}).get("palabras_clave", []):
         suggestion_text = str(suggestion).strip()
@@ -164,7 +220,7 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
                     gemini_keywords.append(skill)
 
     final_keywords = []
-    for keyword in gemini_keywords + matched_keywords + ordered_keywords:
+    for keyword in gemini_keywords + matched_keywords:
         normalized_keyword = str(keyword).strip().casefold()
         if normalized_keyword and not any(normalized_keyword == existing.casefold() for existing in final_keywords):
             final_keywords.append(str(keyword).strip())
@@ -182,6 +238,12 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
 
     return {
         "summary": summary,
+        "summary_origin": summary_origin,
+        "summary_match": _priority_match_report(summary, (analysis or {}).get("palabras_clave", [])),
+        "summary_master_match": _priority_match_report(
+            profile.get("perfil_profesional", {}).get("resumen", ""),
+            (analysis or {}).get("palabras_clave", []),
+        ),
         "keywords": final_keywords[:20],
         "experiencia": ordered_experience,
         "titulo_objetivo": (
@@ -224,14 +286,36 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
     """Ejecuta adaptaciones separadas para resumen, experiencias y habilidades."""
     model_name = "qwen2.5:7b"
     adapted_experience = []
+    experience_diagnostics = []
     for experience in adapted["experiencia"]:
         updated = dict(experience)
+        diagnostic = {}
         updated["descripcion"] = adapt_experience_to_offer(
-            experience, offer_text, model_name, forbidden_companies
+            experience, offer_text, model_name, forbidden_companies, diagnostics=diagnostic
         )
         adapted_experience.append(updated)
+        diagnostic.setdefault("ollama_consultado", False)
+        diagnostic.setdefault("ollama_respondio", False)
+        diagnostic.setdefault("origen", "perfil_maestro")
+        diagnostic.setdefault("motivo_fallback", ["no se recibió diagnóstico del adaptador"])
+        diagnostic["ollama_aceptado"] = str(diagnostic["origen"]).startswith("ollama")
+        diagnostic["porcentaje_uso_ollama"] = 100 if diagnostic["ollama_aceptado"] else 0
+        experience_diagnostics.append({
+            "empresa": experience.get("empresa", ""),
+            "cargo": experience.get("cargo", ""),
+            "origen": diagnostic["origen"],
+            "uso_ollama_pct": diagnostic["porcentaje_uso_ollama"],
+            "maestro_match": _match_label(_priority_match_report(
+                experience.get("descripcion", ""), adapted.get("analysis_priorities", [])
+            )),
+            "final_match": _match_label(_priority_match_report(
+                updated["descripcion"], adapted.get("analysis_priorities", [])
+            )),
+            "causa_fallback": _short_reason(diagnostic.get("motivo_fallback", [])),
+        })
 
-    skills_result = adapt_skills_to_offer(profile, offer_text, model_name)
+    skills_diagnostic = {}
+    skills_result = adapt_skills_to_offer(profile, offer_text, model_name, diagnostics=skills_diagnostic)
     allowed = {
         str(item).strip().casefold(): str(item).strip()
         for item in (
@@ -246,64 +330,72 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
     }
     def verified_items(items):
         selected = []
+        if not isinstance(items, list):
+            return selected
         for item in items:
             verified = allowed.get(str(item).strip().casefold())
             if verified and verified not in selected:
                 selected.append(verified)
         return selected
 
-    selected_aptitudes = verified_items(skills_result.get("aptitudes_clave", []))
-    selected_tools = verified_items(skills_result.get("herramientas", []))
-    selected_competencies = verified_items(skills_result.get("competencias", []))
+    offer_terms = _significant_terms(offer_text)
+
+    def relevant_items(items):
+        ranked = []
+        for index, item in enumerate(items):
+            item_text = str(item).strip()
+            exact_match = item_text.casefold() in offer_text.casefold()
+            score = len(_significant_terms(item_text) & offer_terms)
+            if exact_match or score:
+                ranked.append((score, index, item))
+        ranked.sort(key=lambda entry: (-entry[0], entry[1]))
+        return [item for _, _, item in ranked]
+
+    selected_aptitudes = relevant_items(verified_items(skills_result.get("aptitudes_clave", [])))
+    selected_tools = relevant_items(verified_items(skills_result.get("herramientas", [])))
+    selected_competencies = relevant_items(verified_items(skills_result.get("competencias", [])))
+    matched_aptitudes = list(selected_aptitudes)
+    matched_tools = list(selected_tools)
+    matched_competencies = list(selected_competencies)
+    aptitude_source = profile.get("aptitudes", [])
     software_source = profile.get("software", [])
+    competency_source = profile.get("competencias", [])
     new_technology_source = profile.get("nuevas_tecnologias", [])
-    matching_software = [
-        item for item in software_source
-        if str(item).casefold() in offer_text.casefold()
-        or any(token.casefold() in offer_text.casefold() for token in str(item).split() if len(token) > 3)
+    selected_new_technologies = [
+        item for item in verified_items(skills_result.get("nuevas_tecnologias", []))
+        if item in relevant_items(new_technology_source)
     ]
-    for item in matching_software + software_source:
-        if item not in selected_tools:
-            selected_tools.append(item)
-        if len(selected_tools) >= 5:
-            break
-    selected_new_technologies = verified_items(skills_result.get("nuevas_tecnologias", []))
-    matching_new = [
-        item for item in new_technology_source
-        if str(item).casefold() in offer_text.casefold()
-        or any(token.casefold() in offer_text.casefold() for token in str(item).split() if len(token) > 3)
-    ]
-    for item in matching_new + new_technology_source:
-        if item not in selected_new_technologies:
-            selected_new_technologies.append(item)
-        if len(selected_new_technologies) >= 3:
-            break
+
+    def fill_from_master(selected, source, minimum=5):
+        ordered_source = relevant_items(source) + [
+            item for item in source if item not in relevant_items(source)
+        ]
+        for item in ordered_source:
+            if item not in selected:
+                selected.append(item)
+            if len(selected) >= minimum:
+                break
+        return selected
+
+    selected_aptitudes = fill_from_master(selected_aptitudes, aptitude_source)
+    selected_tools = fill_from_master(selected_tools, software_source, minimum=8)
+    selected_competencies = fill_from_master(
+        selected_competencies, competency_source, minimum=6
+    )
+    selected_new_technologies = fill_from_master(selected_new_technologies, new_technology_source)
     selected_skills = []
-    for item in selected_aptitudes + selected_tools + selected_competencies:
+    for item in matched_aptitudes + matched_tools + matched_competencies:
         verified = allowed.get(str(item).strip().casefold())
         if verified and verified not in selected_skills:
             selected_skills.append(verified)
 
-    fallback_skills = []
     skill_source = (
         profile.get("aptitudes", [])
         + profile.get("software", [])
         + profile.get("competencias", [])
         + profile.get("habilidades", [])
     )
-    for skill in skill_source:
-        skill_lower = str(skill).casefold()
-        if skill_lower in offer_text.casefold() or any(
-            token.casefold() in offer_text.casefold()
-            for token in str(skill).split()
-            if len(token) > 3
-        ):
-            fallback_skills.append(skill)
-    for skill in skill_source:
-        if skill not in fallback_skills:
-            fallback_skills.append(skill)
-
-    for skill in fallback_skills:
+    for skill in relevant_items(skill_source):
         if skill not in selected_skills:
             selected_skills.append(skill)
         if len(selected_skills) >= 14:
@@ -320,7 +412,61 @@ def adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies=
     if selected_logros:
         adapted["logros"] = selected_logros[:5]
     adapted["experiencia"] = adapted_experience
-    adapted["bloques_ollama"] = len(adapted_experience) + 2
+    proposed_skills = {
+        str(item).strip().casefold()
+        for key in ("aptitudes_clave", "herramientas", "nuevas_tecnologias", "competencias")
+        for item in (
+            skills_result.get(key, [])
+            if isinstance(skills_result.get(key, []), list)
+            else []
+        )
+    }
+    accepted_skills = [item for item in selected_skills if item.casefold() in proposed_skills]
+    skills_diagnostic = {
+        "origen": "ollama" if accepted_skills else "perfil_maestro",
+        "uso_ollama_pct": round(
+            len(accepted_skills) * 100 / skills_diagnostic["elementos_habilidad_propuestos"]
+        ) if skills_diagnostic.get("elementos_habilidad_propuestos", 0) else 0,
+        "habilidades_propuestas": skills_diagnostic.get("elementos_habilidad_propuestos", 0),
+        "habilidades_coincidentes": len(accepted_skills),
+        "prioridades_coincidentes": _match_label(_priority_match_report(
+            " ".join(selected_skills), adapted.get("analysis_priorities", [])
+        )),
+    }
+    summary_diagnostic = {
+        "origen": adapted.get("summary_origin", "fallback_local"),
+        "uso_ollama_pct": 100 if str(adapted.get("summary_origin", "")).startswith("ollama") else 0,
+        "intentos": len((adapted.get("analysis") or {}).get("resumen_intentos", [])),
+        "causa_fallback": _short_reason([
+            reason
+            for attempt in (adapted.get("analysis") or {}).get("resumen_intentos", [])
+            for reason in attempt.get("motivos_rechazo", [])
+        ]),
+        "maestro_match": _match_label(adapted.get("summary_master_match", {})),
+        "oferta_match": _match_label(adapted.get("summary_match", {})),
+    }
+    analysis_diagnostic = {
+        "ollama_respondio": bool((adapted.get("analysis") or {}).get("analisis_oferta_ollama_respondio")),
+        "origen": (adapted.get("analysis") or {}).get("analisis_oferta_origen", "desconocido"),
+        "prioridades_detectadas": len(adapted.get("analysis_priorities", [])),
+    }
+    ollama_blocks = [analysis_diagnostic, summary_diagnostic, *experience_diagnostics, skills_diagnostic]
+    adapted["reporte_adaptacion"] = {
+        "analisis_oferta": analysis_diagnostic,
+        "perfil": summary_diagnostic,
+        "experiencias": experience_diagnostics,
+        "habilidades": skills_diagnostic,
+        "totales": {
+            "bloques": len(ollama_blocks),
+            "ollama_aceptado": sum(str(block.get("origen", "")).startswith("ollama") for block in ollama_blocks),
+            "fallback": sum(str(block.get("origen", "")).startswith(("fallback", "perfil_maestro")) for block in ollama_blocks),
+            "porcentaje_bloques_ollama_aceptados": round(
+                sum(str(block.get("origen", "")).startswith("ollama") for block in ollama_blocks)
+                * 100 / len(ollama_blocks)
+            ) if ollama_blocks else 0,
+        },
+    }
+    adapted["bloques_ollama"] = adapted["reporte_adaptacion"]["totales"]["ollama_aceptado"]
     return adapted
 
 
@@ -346,9 +492,12 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
     offer_text = extract_text_from_docx(str(offer_path))
     analysis = analyze_offer_and_profile(offer_text, profile)
     adapted = adapt_profile_to_offer(profile, offer_text, analysis)
+    adapted["analysis"] = analysis
+    adapted["analysis_priorities"] = analysis.get("palabras_clave", [])
     forbidden_companies = extract_offer_organizations(offer_text, offer_name)
     adapted = adapt_content_with_ollama(profile, offer_text, adapted, forbidden_companies)
     analysis["bloques_adaptados"] = adapted.get("bloques_ollama", 0)
+    analysis["reporte_adaptacion"] = adapted.get("reporte_adaptacion", {})
 
     html = build_cv_html(
         {
@@ -378,6 +527,7 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
         "pdf": str(pdf_path),
         "analysis": analysis,
         "adapted": adapted,
+        "reporte_adaptacion": adapted.get("reporte_adaptacion", {}),
     }
 
 
@@ -420,8 +570,10 @@ if __name__ == "__main__":
                 "cargo": analysis.get("cargo_detectado"),
                 "analisis": analysis.get("estado"),
                 "modelo": analysis.get("modelo"),
+                "resumen_origen": analysis.get("resumen_origen"),
                 "motivo": analysis.get("motivo"),
                 "nivel_ajuste": analysis.get("nivel_ajuste"),
                 "palabras_clave": len(analysis.get("palabras_clave", [])),
                 "bloques_adaptados_ollama": analysis.get("bloques_adaptados", 0),
+                "reporte_adaptacion": analysis.get("reporte_adaptacion", {}),
             }, ensure_ascii=False, indent=2))

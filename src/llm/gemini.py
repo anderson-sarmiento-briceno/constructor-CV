@@ -43,23 +43,23 @@ def _unevidenced_offer_terms(generated_text, offer_text, source_fact):
     }
 
 
-def summary_is_factual(summary, profile, offer_text):
-    """Validación equilibrada: exige primera persona y tolera ruido menor, pero
-    rechaza si el resumen trae 2+ términos de la oferta no respaldados por el perfil."""
-    if not summary or len(summary.split()) < 55:
-        return False
+def _summary_validation_issues(summary, profile, offer_text):
+    issues = []
+    summary_text = str(summary or "")
+    if len(summary_text.split()) < 60:
+        issues.append("resumen menor de 60 palabras o vacío")
 
-    summary_lower = summary.casefold()
+    summary_lower = summary_text.casefold()
     profile_text = json.dumps(profile, ensure_ascii=False).casefold()
 
     if not any(term in summary_lower for term in ("soy ", "tengo ", "he ", "mi experiencia", "mi formación")):
-        return False
+        issues.append("no cumple primera persona")
     if any(term in summary_lower for term in (
         "el candidato", "el profesional", "su trayectoria", "según la oferta",
         "perfil maestro", "responsabilidades registradas", "objetivos de la oferta",
         "objetivos del rol", "alineadas con la oferta",
     )):
-        return False
+        issues.append("contiene frases meta o tercera persona")
 
     offer_terms = {term for term in _significant_terms(offer_text) if len(term) >= 4}
     summary_terms = _significant_terms(summary)
@@ -67,9 +67,14 @@ def summary_is_factual(summary, profile, offer_text):
         term for term in (offer_terms & summary_terms)
         if not re.search(r"\b" + re.escape(term) + r"\b", profile_text)
     ]
-    # Cero tolerancia: cualquier término de la oferta no respaldado literalmente
-    # en el perfil maestro invalida el resumen.
-    return len(invented) == 0
+    if len(invented) >= 2:
+        issues.append("incluye términos de oferta sin evidencia: " + ", ".join(sorted(invented)))
+    return issues
+
+
+def summary_is_factual(summary, profile, offer_text):
+    """Valida primera persona y rechaza varias afirmaciones sin respaldo literal."""
+    return not _summary_validation_issues(summary, profile, offer_text)
 
 
 def _text_response(prompt, model_name):
@@ -238,7 +243,9 @@ def _uses_present_tense_for_completed_role(description, experience):
     return bool(words & present_forms)
 
 
-def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", forbidden_companies=None):
+def adapt_experience_to_offer(
+    experience, offer_text, model_name="qwen2.5:7b", forbidden_companies=None, diagnostics=None
+):
     """Reescribe una experiencia real para la oferta sin alterar sus hechos."""
     source = json.dumps(experience, ensure_ascii=False)
     forbidden_companies = forbidden_companies or []
@@ -303,14 +310,28 @@ def adapt_experience_to_offer(experience, offer_text, model_name="qwen2.5:7b", f
     }
     source_overlap = len(source_words & description_words)
     unevidenced_offer_terms = _unevidenced_offer_terms(description, offer_text, experience)
-    if (
-        len(description.split()) < 25
-        or any(phrase in description.casefold() for phrase in evaluator_phrases)
-        or any(company.casefold() in description.casefold() for company in forbidden_companies)
-        or source_overlap < 3
-        or unevidenced_offer_terms
-        or _uses_present_tense_for_completed_role(description, experience)
-    ):
+    issues = []
+    if len(description.split()) < 25:
+        issues.append("respuesta vacía o menor de 25 palabras")
+    if any(phrase in description.casefold() for phrase in evaluator_phrases):
+        issues.append("contiene frases evaluativas o tareas futuras")
+    if any(company.casefold() in description.casefold() for company in forbidden_companies):
+        issues.append("menciona una organización objetivo prohibida")
+    if source_overlap < 3:
+        issues.append("coincidencia insuficiente con la descripción fuente")
+    if unevidenced_offer_terms:
+        issues.append("términos no respaldados: " + ", ".join(sorted(unevidenced_offer_terms)))
+    if _uses_present_tense_for_completed_role(description, experience):
+        issues.append("usa presente para una experiencia finalizada")
+    accepted = not issues
+    if diagnostics is not None:
+        diagnostics.update({
+            "ollama_consultado": True,
+            "ollama_respondio": bool(result),
+            "origen": "ollama" if accepted else "fallback_local",
+            "motivo_fallback": issues,
+        })
+    if not accepted:
         return _local_reorder_experience(experience, offer_text)
     return description
 
@@ -336,7 +357,7 @@ def adapt_achievements_to_offer(logros, offer_text, model_name="qwen2.5:7b"):
     return [str(item).strip() for item in result.get("logros_adaptados", []) if str(item).strip()]
 
 
-def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
+def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b", diagnostics=None):
     """Prioriza habilidades y logros reales en una sola llamada local."""
     source = json.dumps({
         "aptitudes": profile.get("aptitudes", []),
@@ -364,13 +385,25 @@ def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b"):
     {source}
     """
     result = _text_response(prompt, model_name)
-    return {
+    selections = {
         "aptitudes_clave": result.get("aptitudes_clave", []),
         "herramientas": result.get("herramientas", []),
         "nuevas_tecnologias": result.get("nuevas_tecnologias", []),
         "competencias": result.get("competencias", []),
         "logros": result.get("logros", []),
     }
+    if diagnostics is not None:
+        diagnostics.update({
+            "ollama_consultado": True,
+            "ollama_respondio": bool(result),
+            "elementos_habilidad_propuestos": sum(
+                len(selections[key])
+                for key in ("aptitudes_clave", "herramientas", "nuevas_tecnologias", "competencias")
+                if isinstance(selections[key], list)
+            ),
+            "logros_propuestos": len(selections["logros"]) if isinstance(selections["logros"], list) else 0,
+        })
+    return selections
 
 
 def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
@@ -390,6 +423,11 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     {offer_sample}
     """
     overview = _text_response(overview_prompt, model_name)
+    overview_responded = bool(overview)
+    overview_model_fields = [
+        key for key, value in overview.items()
+        if value not in (None, "", [], {})
+    ]
     local_overview = _local_offer_overview(offer_text, profile)
     if not overview.get("cargo_detectado") or overview.get("cargo_detectado") == "NO_EVIDENCIADO":
         overview["cargo_detectado"] = local_overview["cargo_detectado"]
@@ -437,7 +475,16 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     """
     summary_result = _text_response(summary_prompt, model_name)
     generated_summary = str(summary_result.get("resumen_profesional", "")).strip()
-    if not summary_is_factual(generated_summary, profile, offer_text):
+    summary_attempts = [{
+        "ollama_respondio": bool(summary_result),
+        "valido": summary_is_factual(generated_summary, profile, offer_text),
+        "motivos_rechazo": (
+            _summary_validation_issues(generated_summary, profile, offer_text)
+            if summary_result else [_LAST_OLLAMA_ERROR or "Ollama no devolvió respuesta"]
+        ),
+    }]
+    summary_source = "ollama" if summary_attempts[0]["valido"] else ""
+    if not summary_source:
         retry_prompt = summary_prompt + """
 
     IMPORTANTE: el intento anterior pudo haber incluido información no respaldada por
@@ -447,17 +494,40 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     """
         summary_result = _text_response(retry_prompt, model_name)
         generated_summary = str(summary_result.get("resumen_profesional", "")).strip()
-        if not summary_is_factual(generated_summary, profile, offer_text):
+        retry_valid = summary_is_factual(generated_summary, profile, offer_text)
+        summary_attempts.append({
+            "ollama_respondio": bool(summary_result),
+            "valido": retry_valid,
+            "motivos_rechazo": (
+                _summary_validation_issues(generated_summary, profile, offer_text)
+                if summary_result else [_LAST_OLLAMA_ERROR or "Ollama no devolvió respuesta"]
+            ),
+        })
+        if retry_valid:
+            summary_source = "ollama_reintento"
+        else:
             generated_summary = ""
+            summary_source = "fallback_local"
 
     active_model = os.getenv("OLLAMA_MODEL", model_name)
     detected_role = overview.get("cargo_detectado", "NO_EVIDENCIADO")
     if not detected_role or detected_role == "NO_EVIDENCIADO":
         detected_role = _extract_role_from_offer(offer_text)
+    summary_accepted = summary_source.startswith("ollama")
     return {
         "cargo_detectado": detected_role,
         "modelo": f"ollama-{active_model}",
-        "motivo": "Respuesta válida del modelo local Ollama",
+        "analisis_oferta_ollama_consultado": True,
+        "analisis_oferta_origen": "ollama_con_apoyo_local" if overview_responded else "fallback_local",
+        "analisis_oferta_ollama_respondio": overview_responded,
+        "analisis_oferta_campos_ollama": overview_model_fields,
+        "resumen_origen": summary_source or "fallback_local",
+        "resumen_intentos": summary_attempts,
+        "motivo": (
+            "Resumen generado y validado por Ollama"
+            if summary_accepted
+            else "Los resúmenes de Ollama no superaron la validación; se usará el fallback local"
+        ),
         "palabras_clave": overview.get("prioridades", [])[:30],
         "resumen_profesional": generated_summary,
         "experiencia_priorizada": [],
@@ -465,5 +535,5 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
         "responsabilidades_priorizadas": [],
         "requisitos_no_evidenciados": overview.get("requisitos_no_evidenciados", [])[:15],
         "nivel_ajuste": overview.get("nivel_rol", "No determinado"),
-        "estado": "analizado con modelo local (Ollama)",
+        "estado": "resumen generado con Ollama" if summary_accepted else "resumen local de fallback",
     }

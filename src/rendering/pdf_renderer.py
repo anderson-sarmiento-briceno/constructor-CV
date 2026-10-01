@@ -303,7 +303,6 @@ def render_cv_to_pdf_legacy(profile_or_html, output_pdf_path):
     story.append(Paragraph("COMPETENCIAS TÉCNICAS", section_header))
     for skill in skills[:12]:
         story.append(Paragraph(f"• {skill}", body_style))
-
     story.append(Paragraph("LOGROS DESTACADOS", section_header))
     for logro in logros[:5]:
         story.append(Paragraph(f"• {logro}", body_style))
@@ -344,9 +343,9 @@ def render_cv_to_pdf_model_legacy(profile_or_html, output_pdf_path):
     )
 
     skills = profile.get("habilidades", []) or ["Gestión de Proyectos", "Python", "Power BI", "SQL", "ETL", "Machine Learning"]
-    aptitudes = profile.get("aptitudes", []) or skills[:7]
-    software = profile.get("software", []) or skills[7:19]
-    nuevas_tecnologias = profile.get("nuevas_tecnologias", []) or []
+    aptitudes = profile.get("aptitudes", skills[:7])
+    software = profile.get("software", skills[7:19])
+    nuevas_tecnologias = profile.get("nuevas_tecnologias", [])
     if len(software) < 5:
         software = software + [item for item in skills if item not in software]
     if len(nuevas_tecnologias) < 3:
@@ -506,18 +505,12 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
         profile.get("perfil_profesional", {}).get("resumen"),
         "Ingeniero eléctrico con experiencia en infraestructura, automatización, análisis de datos y eficiencia energética.",
     )
-    skills = profile.get("habilidades", []) or ["Gestión de Proyectos", "Python", "Power BI", "SQL", "ETL", "Machine Learning"]
+    skills = profile.get("habilidades", ["Gestión de Proyectos", "Python", "Power BI", "SQL", "ETL", "Machine Learning"])
     aptitudes = profile.get("aptitudes", []) or skills[:7]
-    software = profile.get("software", []) or skills[7:19]
-    nuevas_tecnologias = profile.get("nuevas_tecnologias", []) or []
-    competencias = profile.get("competencias", []) or skills
+    software = profile.get("software", skills[7:19])
+    nuevas_tecnologias = profile.get("nuevas_tecnologias", [])
+    competencias = profile.get("competencias", skills)
     habilidades_blandas = profile.get("habilidades_blandas", []) or []
-    if len(software) < 5:
-        software = software + [item for item in skills if item not in software]
-    if len(nuevas_tecnologias) < 3:
-        nuevas_tecnologias = nuevas_tecnologias + [
-            item for item in software if item not in nuevas_tecnologias
-        ]
     languages = profile.get("idiomas", []) or ["Español - Nativo", "English - Intermedio"]
     training = profile.get("formacion", []) or []
     courses = profile.get("cursos", []) or []
@@ -634,9 +627,6 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
             sidebar_section("NUEVAS TECNOLOGÍAS")
             for value in nuevas_tecnologias[:8]:
                 sidebar_flow.append(bullet(value, sidebar_text))
-            sidebar_section("IDIOMAS")
-            for value in languages[:4]:
-                sidebar_flow.append(para(value, sidebar_text))
         else:
             sidebar_section("EDUCACIÓN")
             for item in training:
@@ -655,6 +645,9 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
             sidebar_section("INTERESES")
             for value in interests:
                 sidebar_flow.append(bullet(value, sidebar_text))
+            sidebar_section("IDIOMAS")
+            for value in languages[:4]:
+                sidebar_flow.append(para(value, sidebar_text))
 
         y = top - 8
         for flowable in sidebar_flow:
@@ -740,7 +733,7 @@ def build_cv_html(cv_data, profile):
     merged = _normalize_profile(profile if isinstance(profile, dict) else {})
     if isinstance(cv_data, dict):
         for field in ("perfil_profesional", "habilidades", "aptitudes", "software", "nuevas_tecnologias", "competencias", "habilidades_blandas", "experiencia", "formacion", "cursos", "logros", "intereses", "titulo_objetivo"):
-            if field in cv_data and cv_data[field]:
+            if field in cv_data:
                 if field == "perfil_profesional" and isinstance(cv_data[field], dict):
                     merged[field] = {**merged.get(field, {}), **cv_data[field]}
                 else:
