@@ -1,6 +1,7 @@
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -44,6 +45,93 @@ def extract_offer_organizations(offer_text, offer_name=""):
     return sorted({item.strip() for item in candidates if item.strip() not in ignored}, key=len, reverse=True)
 
 
+# Conectores mínimos (no palabras de CV) usados solo para detectar duplicados de
+# redacción. A diferencia de _significant_terms (firewall anti-invención), aquí NO
+# se filtran palabras como "gestión" o "proyecto": si se repiten, también cuentan.
+_DEDUPE_CONNECTORS = {
+    "el", "la", "los", "las", "un", "una", "unos", "unas", "de", "del", "al",
+    "en", "con", "para", "por", "y", "o", "a", "que", "su", "sus", "mi",
+}
+
+
+def _dedupe_words(text):
+    words = re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}", text or "")
+    return {word.casefold() for word in words if word.casefold() not in _DEDUPE_CONNECTORS}
+
+
+def _split_list_lead_in(text):
+    """Separa el conector de redacción (ej. "He trabajado con") del primer
+    elemento real de una lista, para poder depurar ese elemento sin romper la frase.
+    Solo busca "en"/"con" cerca del inicio, para no confundir preposiciones que son
+    parte del propio término (ej. la "de" en "Gestión de Proyectos")."""
+    words = text.split()
+    search_window = min(5, len(words))
+    last_connector_idx = None
+    for index in range(search_window):
+        if words[index].casefold() in ("en", "con"):
+            last_connector_idx = index
+    if last_connector_idx is not None and last_connector_idx < len(words) - 1:
+        return " ".join(words[:last_connector_idx + 1]), " ".join(words[last_connector_idx + 1:])
+    return "", text
+
+
+def _dedupe_normalize(term):
+    """Normaliza una palabra solo para comparar duplicados en el pulido final
+    (quita acentos y plurales simples), sin afectar la validación anti-invención."""
+    flattened = unicodedata.normalize("NFKD", term)
+    flattened = "".join(ch for ch in flattened if not unicodedata.combining(ch))
+    if len(flattened) > 5 and flattened.endswith("es"):
+        flattened = flattened[:-2]
+    elif len(flattened) > 4 and flattened.endswith("s"):
+        flattened = flattened[:-1]
+    return flattened
+
+
+def _dedupe_terms(text):
+    return {_dedupe_normalize(term) for term in _dedupe_words(text)}
+
+
+def polish_summary_text(summary):
+    """Revisa el resumen YA generado (por Ollama o por el fallback local) y elimina
+    redundancias de redacción sin tocar hechos ni reglas de validación: si un término
+    significativo ya fue mencionado antes en el texto (en cualquier oración anterior,
+    incluyendo variantes de plural/acento), se quita su repetición posterior dentro
+    de una lista separada por comas (ej. "...modelos predictivos..." y más adelante
+    "...automatizaciones, Modelos Predictivos..." -> la segunda mención se depura)."""
+    if not summary:
+        return summary
+
+    seen_terms = set()
+
+    def dedupe_comma_list(match):
+        items = [piece.strip() for piece in match.group(1).split(",")]
+        lead = ""
+        kept = []
+        for index, item in enumerate(items):
+            working_item = item
+            if index == 0:
+                lead, working_item = _split_list_lead_in(item)
+            terms = _dedupe_terms(working_item)
+            if terms and terms <= seen_terms:
+                continue
+            seen_terms.update(terms)
+            kept.append(working_item)
+        if lead:
+            kept = [lead] if not kept else [f"{lead} {kept[0]}", *kept[1:]]
+        return ", ".join(kept) if kept else match.group(1)
+
+    # Depura cada lista separada por comas dentro de cada oración, acumulando los
+    # términos ya mencionados en oraciones anteriores del mismo resumen (incluso si
+    # esa oración previa no tenía una lista con comas).
+    sentences = re.split(r"(?<=[.!?])\s+", summary)
+    cleaned_sentences = []
+    for sentence in sentences:
+        cleaned = re.sub(r"([^.!?]*,[^.!?]*)", dedupe_comma_list, sentence, count=1)
+        seen_terms.update(_dedupe_terms(sentence))
+        cleaned_sentences.append(cleaned)
+    return " ".join(cleaned_sentences)
+
+
 def build_local_summary(profile, offer_text, matched_skills, analysis=None):
     """Construye un resumen dinámico con datos del JSON cuando el modelo no responde."""
     dp = profile.get("datos_personales", {})
@@ -85,7 +173,6 @@ def build_local_summary(profile, offer_text, matched_skills, analysis=None):
             for other in focus
         )
     ]
-    focus_text = ", ".join(focus) or "optimización de procesos"
     skill_candidates = list(dict.fromkeys(
         str(item).strip() for item in matched_skills if str(item).strip()
     ))
@@ -98,6 +185,7 @@ def build_local_summary(profile, offer_text, matched_skills, analysis=None):
             if other.casefold() != skill.casefold()
         )
     ]
+    focus_text = ", ".join(dict.fromkeys(focus)) or "optimización de procesos"
     skill_text = ", ".join(unique_skills[:6]) or "las competencias registradas"
     return (
         f"Soy {profession} y tengo experiencia en {focus_text}. He trabajado con {skill_text} "
@@ -211,6 +299,9 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
     summary_origin = (analysis or {}).get("resumen_origen")
     if not summary_origin:
         summary_origin = "ollama" if gemini_summary and summary == gemini_summary else "fallback_local"
+    # Paso final, aplicado sobre el resumen ya definitivo (venga de Ollama o del
+    # fallback): solo pule redacción/redundancia, no cambia hechos ni reglas de validación.
+    summary = polish_summary_text(summary)
     gemini_keywords = []
     for suggestion in (analysis or {}).get("palabras_clave", []):
         suggestion_text = str(suggestion).strip()
