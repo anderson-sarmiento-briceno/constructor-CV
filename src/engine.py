@@ -116,6 +116,8 @@ def _final_text_cleanup(text):
     return text.strip()
 
 
+import re
+
 def polish_summary_text(summary):
     """Revisa el resumen YA generado (por Ollama o por el fallback local) y elimina
     redundancias de redacción sin tocar hechos ni reglas de validación: si un término
@@ -168,7 +170,21 @@ def polish_summary_text(summary):
             # para que oraciones futuras sepan que ya se mencionaron.
             register_terms(_dedupe_terms(sentence))
         cleaned_sentences.append(cleaned)
-    return _final_text_cleanup(" ".join(cleaned_sentences))
+
+    result = " ".join(cleaned_sentences)
+
+    # --- CORRECCIONES GRAMATICALES Y DE SINTAXIS ---
+    # 1. Corrige la referencia a Freelance para que no lo trate como nombre de empresa ("En Consultor Freelance")
+    result = re.sub(r'\bEn Consultor Freelance\b', 'Como consultor freelance', result, flags=re.IGNORECASE)
+    result = re.sub(r'\bEn Freelance\b', 'Como freelance', result, flags=re.IGNORECASE)
+    result = re.sub(r'\b(automatice|automatiqu[eé])\b', 'automaticé', result, flags=re.IGNORECASE)
+    # 2. Correcciones ortográficas comunes de generación (ej. verbos en pretérito)
+    result = re.sub(r'\bautomatice\b', 'automaticé', result, flags=re.IGNORECASE)
+
+    # 3. Limpieza final de espacios dobles o residuales
+    result = re.sub(r'\s+', ' ', result).strip()
+
+    return _final_text_cleanup(result)
 
 
 def build_local_summary(profile, offer_text, matched_skills, analysis=None):

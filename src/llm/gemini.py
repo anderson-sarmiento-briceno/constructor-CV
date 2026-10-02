@@ -5,6 +5,7 @@ import time
 from urllib import error, request
 from collections import Counter
 from dotenv import load_dotenv
+import unicodedata
 
 load_dotenv()
 
@@ -30,17 +31,23 @@ def _significant_terms(text):
     return {word.casefold() for word in words if word.casefold() not in _STOPWORDS_ES}
 
 
+def _stem(word, size=6):
+    """Raíz simple: sin acentos, minúsculas y primeras letras (analítica ~ analíticos)."""
+    flat = "".join(
+        ch for ch in unicodedata.normalize("NFKD", word.casefold())
+        if not unicodedata.combining(ch)
+    )
+    return flat[:size]
+
+
+def _stems_of(text):
+    return {_stem(word) for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}", text or "")}
+
 def _unevidenced_offer_terms(generated_text, offer_text, source_fact):
-    """Firewall genérico: términos que están en la oferta y en el texto generado,
-    pero no en la fuente real (experiencia), sin importar de qué dominio se trate."""
-    source_text = json.dumps(source_fact, ensure_ascii=False).casefold()
-    offer_terms = _significant_terms(offer_text)
-    generated_terms = _significant_terms(generated_text)
-    candidate_terms = offer_terms & generated_terms
-    return {
-        term for term in candidate_terms
-        if not re.search(r"\b" + re.escape(term) + r"\b", source_text)
-    }
+    """Términos que están en la oferta y en el texto generado, pero sin raíz en la fuente real."""
+    source_stems = _stems_of(json.dumps(source_fact, ensure_ascii=False))
+    candidate_terms = _significant_terms(offer_text) & _significant_terms(generated_text)
+    return {term for term in candidate_terms if _stem(term) not in source_stems}
 
 
 def _summary_validation_issues(summary, profile, offer_text):
@@ -65,9 +72,10 @@ def _summary_validation_issues(summary, profile, offer_text):
 
     offer_terms = {term for term in _significant_terms(offer_text) if len(term) >= 4}
     summary_terms = _significant_terms(summary)
+    profile_stems = _stems_of(profile_text)
     invented = [
         term for term in (offer_terms & summary_terms)
-        if not re.search(r"\b" + re.escape(term) + r"\b", profile_text)
+        if _stem(term) not in profile_stems
     ]
     if len(invented) >= 2:
         issues.append("incluye términos de oferta sin evidencia: " + ", ".join(sorted(invented)))
@@ -135,6 +143,7 @@ def _fix_grammar_and_punctuation(texto: str) -> str:
         return texto
     t = texto
     t = re.sub(r"\b(de|en|con|para|por|y|o)\s*,", ",", t, flags=re.IGNORECASE)
+    t = re.sub(r"(\w+)iz(é)\b", r"\1ic\2", t)  # automatizé -> automaticé
     t = re.sub(r",\s*,", ",", t)
     t = re.sub(r"\s+([,.])", r"\1", t)
     t = re.sub(r"\s+", " ", t)
@@ -686,8 +695,17 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     Redacta el perfil profesional de un CV para esta oferta.
     Devuelve SOLO JSON con resumen_profesional de 90 a 125 palabras.
     El texto DEBE comenzar con "Soy" o "Tengo" y mantenerse en primera persona durante
-    todo el resumen. Usa formas como "He desarrollado", "He trabajado", "Mi experiencia"
-    y "Puedo aportar". No escribas "Su trayectoria", "su experiencia", "el candidato",
+    todo el resumen.Usa formas como "He desarrollado", "He trabajado" y "Mi experiencia". 
+    No uses "Puedo aportar" ni cierres con capacidades que pida la oferta: cierra con
+    un resultado o una fortaleza real del perfil maestro.
+    ESTRUCTURA: la primera oración empieza con "Soy un Científico de Datos e Ingeniero Eléctrico" y resume mis
+    años de experiencia y formación; luego va una oración por cada experiencia del perfil
+    maestro (de la más reciente a la más antigua) que use SOLO las herramientas y cifras de
+    esa experiencia. Nunca mezcles resultados de experiencias distintas ni atribuyas una cifra
+    a un proyecto distinto del que la produjo. Conserva el sentido de cada cifra ejemplo: "+35% en
+    conversión" es un aumento (escribe "aumenté la conversión en un 35%"), no una tasa del 35%;
+    "82% de precisión" es un nivel de precisión. Máximo cuatro cifras.
+    No escribas "Su trayectoria", "su experiencia", "el candidato",
     "el profesional" ni describas a Anderson desde fuera.
     No uses frases como "perfil maestro", "responsabilidades registradas", "según la
     oferta", "objetivos de la oferta" o "alineado con la oferta". Usa exclusivamente
@@ -732,12 +750,17 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     }]
     summary_source = "ollama" if summary_attempts[0]["valido"] else ""
     if not summary_source:
-        retry_prompt = summary_prompt + """
+        rejected_terms = []
+        for issue in summary_attempts[0]["motivos_rechazo"]:
+            if "términos de oferta sin evidencia" in issue:
+                rejected_terms += [t.strip() for t in issue.split(":", 1)[1].split(",") if t.strip()]
+        forbidden_line = (
+            "PALABRAS PROHIBIDAS (vienen de la oferta y no están en mi perfil; no las uses ni sus variantes): "
+            + ", ".join(rejected_terms) + ". "
+        ) if rejected_terms else ""
+        retry_prompt = summary_prompt + f"""
 
-    IMPORTANTE: el intento anterior pudo haber incluido información no respaldada por
-    el perfil maestro. Esta vez sé aún más estricto: usa ÚNICAMENTE lo que está escrito
-    literalmente en el PERFIL MAESTRO. Si la oferta pide algo que no tengo documentado,
-    simplemente no lo menciones.
+    IMPORTANTE: el intento anterior incluyó información no respaldada por el perfil maestro. {forbidden_line}Esta vez usa ÚNICAMENTE lo que está escrito literalmente en el PERFIL MAESTRO. Si la oferta pide algo que no tengo documentado, simplemente no lo menciones.
     """
         summary_result = _text_response(retry_prompt, model_name)
         generated_summary = str(summary_result.get("resumen_profesional", "")).strip()
