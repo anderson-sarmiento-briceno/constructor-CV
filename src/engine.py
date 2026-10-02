@@ -702,6 +702,18 @@ if __name__ == "__main__":
         generated_items = generate_all_cv_for_offers(str(offers_dir), str(profile_path), str(output_dir))
         for item in generated_items:
             analysis = item["analysis"]
+
+            # --- DEPURACIÓN (borrar después) ---
+            import src.llm.gemini as gem
+            print("\n===== INTENTOS DEL RESUMEN =====")
+            print(json.dumps(analysis.get("resumen_intentos"), ensure_ascii=False, indent=2))
+            print("\n===== ÚLTIMO ERROR DE OLLAMA =====")
+            print(gem._LAST_OLLAMA_ERROR or "(ninguno)")
+            print("\n===== REPORTE DEL PULIDO =====")
+            print(json.dumps(gem._LAST_POLISH_REPORT, ensure_ascii=False, indent=2))
+            print("=================================\n")
+            # -----------------------------------
+
             print(json.dumps({
                 "pdf": item["pdf"],
                 "cargo": analysis.get("cargo_detectado"),
@@ -709,6 +721,7 @@ if __name__ == "__main__":
                 "modelo": analysis.get("modelo"),
                 "resumen_origen": analysis.get("resumen_origen"),
                 "motivo": analysis.get("motivo"),
+
                 "nivel_ajuste": analysis.get("nivel_ajuste"),
                 "palabras_clave": len(analysis.get("palabras_clave", [])),
                 "bloques_adaptados_ollama": analysis.get("bloques_adaptados", 0),

@@ -3,7 +3,7 @@ import os
 import re
 import time
 from urllib import error, request
-
+from collections import Counter
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -79,52 +79,227 @@ def summary_is_factual(summary, profile, offer_text):
     return not _summary_validation_issues(summary, profile, offer_text)
 
 
+
+# ===========================================================================
+# BLOQUE DE REEMPLAZO PARA src/llm/gemini.py
+#
+# Reemplaza todo lo que va desde el encabezado
+#   "# 1. DETECTOR Y LIMPIADOR DINÁMICO DE REPETICIONES"
+# hasta el final de polish_text_with_ollama (justo antes de `def _text_response`).
+# Además, agrega `import ast` junto a los otros imports al inicio del archivo.
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Ajustes del pulido
+# ---------------------------------------------------------------------------
+_POLISH_MIN_RATIO = 0.70   # el texto pulido no puede ser menor al 70% del original
+_POLISH_MAX_RATIO = 1.30   # ni mayor al 130%
+_POLISH_TEXT_KEYS = (
+    "texto", "texto_reescrito", "reescrito", "resumen", "resumen_profesional",
+    "resultado", "response", "text", "output",
+)
+_POLISH_META_PHRASES = (
+    "el candidato", "el profesional", "su trayectoria", "según la oferta",
+    "perfil maestro", "objetivos de la oferta", "para el puesto de",
+)
+_FIRST_PERSON_START = re.compile(r"^\s*(soy|tengo|he|mi|cuento|poseo)\b", re.IGNORECASE)
+
+# Diagnóstico del último pulido (para imprimirlo o guardarlo si quieres depurar)
+_LAST_POLISH_REPORT = {}
+
+
+# ===========================================================================
+# 1. UTILIDADES DE TEXTO
+# ===========================================================================
+
+def _get_frequent_words(text: str, top_n: int = 3, min_length: int = 4) -> list:
+    """Palabras con significado que se repiten 3 o más veces en el texto."""
+    stopwords = {
+        "de", "del", "en", "con", "el", "la", "los", "las", "para", "por",
+        "un", "una", "que", "como", "sus", "mas", "su", "sobre",
+        "este", "esta", "estos", "estas", "entre", "hasta", "desde"
+    }
+    words = [w.lower().strip(".,;:-()") for w in text.split()]
+    filtered = [w for w in words if len(w) >= min_length and w not in stopwords]
+    counts = Counter(filtered)
+    return [word for word, count in counts.items() if count >= 3]
+
+
+def _fix_grammar_and_punctuation(texto: str) -> str:
+    """Limpia comas, espacios dobles y conectores sueltos.
+
+    Ya NO baja a minúscula la letra que sigue a una coma: esa regla dañaba
+    nombres de tecnologías y conceptos ("Ingeniería de Datos" -> "ingeniería de Datos").
+    """
+    if not texto:
+        return texto
+    t = texto
+    t = re.sub(r"\b(de|en|con|para|por|y|o)\s*,", ",", t, flags=re.IGNORECASE)
+    t = re.sub(r",\s*,", ",", t)
+    t = re.sub(r"\s+([,.])", r"\1", t)
+    t = re.sub(r"\s+", " ", t)
+    return t.strip()
+
+
+def _extract_text_from_llm(result):
+    """Devuelve SOLO el texto de una respuesta del modelo.
+
+    Maneja: str, dict (con cualquier clave), listas, dicts anidados y dicts que
+    llegaron convertidos a texto, por ejemplo "{'reescrito': '...'}".
+    """
+    if result is None:
+        return ""
+    if isinstance(result, str):
+        text = result.strip()
+        if text and text[0] in "{[":
+            parsed = None
+            try:
+                parsed = json.loads(text)
+            except ValueError:
+                try:
+                    parsed = ast.literal_eval(text)
+                except (ValueError, SyntaxError):
+                    parsed = None
+            if isinstance(parsed, (dict, list, tuple)):
+                return _extract_text_from_llm(parsed)
+            if isinstance(parsed, str):
+                return parsed.strip()
+        return text
+    if isinstance(result, dict):
+        for key in _POLISH_TEXT_KEYS:
+            value = result.get(key)
+            if value:
+                extracted = _extract_text_from_llm(value)
+                if extracted:
+                    return extracted
+        candidates = [_extract_text_from_llm(value) for value in result.values()]
+        candidates = [item for item in candidates if item]
+        return max(candidates, key=len) if candidates else ""
+    if isinstance(result, (list, tuple)):
+        parts = [_extract_text_from_llm(item) for item in result]
+        return " ".join(part for part in parts if part).strip()
+    return str(result).strip()
+
+
+def _polish_rejection_reasons(original, polished, frequent_before, profile=None, offer_text=""):
+    """Lista de motivos por los que NO se acepta el texto pulido (vacía = aceptado)."""
+    if not polished:
+        return ["respuesta vacía"]
+
+    reasons = []
+    if re.search(r"[{}\[\]]", polished):
+        reasons.append("contiene llaves o corchetes: no es texto limpio")
+
+    orig_words = len(original.split())
+    pol_words = len(polished.split())
+    if pol_words < orig_words * _POLISH_MIN_RATIO:
+        reasons.append("recorta demasiado el texto")
+    if pol_words > orig_words * _POLISH_MAX_RATIO:
+        reasons.append("alarga demasiado el texto")
+
+    if _FIRST_PERSON_START.search(original) and not _FIRST_PERSON_START.search(polished):
+        reasons.append("deja de estar en primera persona")
+    if any(phrase in polished.casefold() for phrase in _POLISH_META_PHRASES):
+        reasons.append("contiene frases meta o de tercera persona")
+
+    new_numbers = set(re.findall(r"\d+", polished)) - set(re.findall(r"\d+", original))
+    if new_numbers:
+        reasons.append("incluye cifras nuevas: " + ", ".join(sorted(new_numbers)))
+
+    if offer_text:
+        source = {"texto": original, "perfil": profile or {}}
+        invented = _unevidenced_offer_terms(polished, offer_text, source)
+        if invented:
+            reasons.append("términos de la oferta sin respaldo: " + ", ".join(sorted(invented)))
+
+    if len(_get_frequent_words(polished)) > len(frequent_before):
+        reasons.append("introduce más repeticiones que el original")
+
+    return reasons
+
+
+# ===========================================================================
+# 2. FUNCIÓN PRINCIPAL DE PULIDO
+# ===========================================================================
+
 def polish_text_with_ollama(text, model_name="qwen2.5:7b", profile=None, offer_text=""):
-    """Pide a Ollama reescribir el texto (fluidez/sonoridad), SIN resumir ni quitar
-    información. Si el resultado recorta más del 15% de las palabras originales, o
-    si introduce afirmaciones sin respaldo en el perfil, se descarta y se devuelve
-    el texto original tal cual."""
+    """Reescribe un texto con Ollama y SOLO acepta el resultado si pasa los controles.
+
+    Ollama se llama con format="json", así que el prompt pide explícitamente un JSON
+    {"texto": "..."} y de ahí se extrae únicamente la cadena. Si ninguno de los dos
+    intentos pasa los controles, se devuelve el texto original (con puntuación limpia).
+    """
+    global _LAST_POLISH_REPORT
+
     if not text or len(text.strip()) < 10:
         return text
 
-    prompt = f"""
-    Tu ÚNICA tarea es reescribir el siguiente texto para mejorar su fluidez
-    gramatical, elegancia y sonoridad profesional en español, SIN REDUCIR SU
-    LONGITUD NI ELIMINAR INFORMACIÓN.
-    Devuelve SOLO JSON con la clave "texto_pulido".
+    cleaned_original = _fix_grammar_and_punctuation(text)
+    frequent_words = _get_frequent_words(text)
 
-    REGLAS ESTRICTAS:
-    1. PRESERVACIÓN TOTAL DE CONTENIDO: conserva el 100% de los datos, herramientas
-       tecnológicas, números, fechas, nombres de empresas y métricas. No omitas
-       ningún detalle.
-    2. CONSERVACIÓN DE LONGITUD: el texto resultante debe tener aproximadamente la
-       misma cantidad de palabras que el original (no resumas, no recortes).
-    3. MEJORA SINTÁCTICA: cambia conectores repetitivos, corrige errores
-       gramaticales y reemplaza palabras idénticas cercanas por sinónimos precisos
-       del mismo nivel técnico.
-    4. VOZ Y PERSONA: mantén estrictamente la primera persona del singular
-       ("Lideré", "Desarrollé", "Cuento con").
-    5. SIN METATEXTO: no agregues introducciones, comentarios ni comillas extra.
+    if frequent_words:
+        words_str = ", ".join(f'"{w}"' for w in frequent_words)
+        avoid_instruction = (
+            f"Estas palabras se repiten demasiado: [{words_str}]. Usa sinónimos o "
+            "reestructura las frases para no usar cada una más de una vez."
+        )
+    else:
+        avoid_instruction = "Elimina la repetición excesiva de conceptos y de palabras."
 
-    TEXTO A PULIR:
-    {text}
-    """
-    result = _text_response(prompt, model_name)
-    polished = str(result.get("texto_pulido", "")).strip().strip('"')
-    if not polished:
-        return text
+    main_prompt = f"""
+Eres un experto en redacción de currículos en español. Reescribe el texto para que suene natural, fluido y profesional.
 
-    original_words = len(text.split())
-    polished_words = len(polished.split())
-    if polished_words < original_words * 0.85:
-        # Recortó demasiado: priorizamos conservar la información sobre la fluidez.
-        return text
+REGLAS:
+1. {avoid_instruction}
+2. Conserva TODOS los hechos: herramientas, tecnologías, cifras, empresas y logros. No agregues nada nuevo y no cambies ningún número.
+3. Mantén la primera persona ("Soy", "Tengo", "He trabajado").
+4. Si hay listas largas de conceptos, agrúpalos en ideas y no enumeres más de cuatro elementos seguidos. Evita empezar dos oraciones con la misma palabra.
+5. Respeta las mayúsculas de nombres propios y tecnologías (Python, Power BI, Machine Learning).
+6. FORMATO: responde SOLO con un JSON de esta forma: {{"texto": "<texto reescrito en una sola cadena>"}}. Sin explicaciones.
 
-    if profile is not None and not summary_is_factual(polished, profile, offer_text):
-        # La reescritura introdujo algo sin respaldo en el perfil maestro.
-        return text
+TEXTO A REESCRIBIR:
+{text}
+"""
 
-    return polished
+    retry_prompt = f"""
+Reescribe este texto en español en un solo párrafo fluido, sin repetir palabras ni enumerar más de cuatro elementos seguidos. Conserva todos los datos, cifras y nombres de tecnologías, y mantén la primera persona.
+Responde SOLO con un JSON de esta forma: {{"texto": "<texto reescrito en una sola cadena>"}}
+
+{text}
+"""
+
+    prefix_pattern = r"^(Aquí está|Texto pulido|Resultado|Resumen|Reescritura|Versión pulida):?\s*"
+    attempts = []
+
+    for label, prompt in (("ollama", main_prompt), ("ollama_reintento", retry_prompt)):
+        try:
+            result = _text_response(prompt, model_name)
+        except Exception as exc:
+            attempts.append({"intento": label, "motivos": [f"error: {exc}"]})
+            continue
+
+        polished = _extract_text_from_llm(result)
+        polished = re.sub(prefix_pattern, "", polished, flags=re.IGNORECASE)
+        polished = _fix_grammar_and_punctuation(polished.strip().strip('"').strip("'"))
+
+        reasons = _polish_rejection_reasons(
+            text, polished, frequent_words, profile=profile, offer_text=offer_text
+        )
+        attempts.append({"intento": label, "motivos": reasons})
+        if not reasons:
+            _LAST_POLISH_REPORT = {"origen": label, "intentos": attempts}
+            return polished
+
+    _LAST_POLISH_REPORT = {"origen": "texto_original", "intentos": attempts}
+    return cleaned_original
+
+
+
+
+
+
+
+
 
 
 def _text_response(prompt, model_name):
@@ -457,6 +632,25 @@ def adapt_skills_to_offer(profile, offer_text, model_name="qwen2.5:7b", diagnost
         })
     return selections
 
+def _compact_profile_for_summary(profile):
+    """Versión reducida del perfil para el prompt del resumen (~70% más corta)."""
+    dp = profile.get("datos_personales", {})
+    return {
+        "datos_personales": {
+            "profesion": dp.get("profesion"),
+            "profesiones": dp.get("profesiones"),
+        },
+        "perfil_profesional": profile.get("perfil_profesional", {}),
+        "formacion": profile.get("formacion", []),
+        "experiencia": [
+            {k: exp.get(k) for k in ("empresa", "cargo", "fechas", "sectores", "herramientas", "proyectos", "logros") if exp.get(k)}
+            for exp in profile.get("experiencia", [])
+        ],
+        "competencias": profile.get("competencias", []),
+        "certificaciones": profile.get("certificaciones", []),
+        "idiomas": profile.get("idiomas", []),
+    }
+
 
 def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
     """Analiza la oferta en bloques pequeños y combina resultados validados."""
@@ -464,7 +658,8 @@ def analyze_offer_and_profile(offer_text, profile, model_name="qwen2.5:7b"):
         return _fallback_analysis(profile or {})
 
     offer_sample = offer_text[:5000]
-    profile_summary = json.dumps(profile, ensure_ascii=False)
+    #profile_summary = json.dumps(profile, ensure_ascii=False)
+    profile_summary = json.dumps(_compact_profile_for_summary(profile), ensure_ascii=False)
     overview_prompt = f"""
     Analiza únicamente esta oferta laboral. Devuelve SOLO JSON con:
     cargo_detectado, nivel_rol (junior, intermedio, avanzado o no determinado),
