@@ -509,7 +509,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     aptitudes = profile.get("aptitudes", []) or skills[:7]
     software = profile.get("software", skills[7:19])
     nuevas_tecnologias = profile.get("nuevas_tecnologias", [])
-    competencias = profile.get("competencias", skills)
+    competencias = profile.get("competencias") or skills
     habilidades_blandas = profile.get("habilidades_blandas", []) or []
     languages = profile.get("idiomas", []) or ["Español - Nativo", "English - Intermedio"]
     training = profile.get("formacion", []) or []

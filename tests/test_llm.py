@@ -1,0 +1,237 @@
+import io
+import json
+from email.message import Message
+from urllib import error
+
+import pytest
+
+import src.llm.client as client
+import src.llm.llm as llm
+
+PROFILE = {
+    "datos_personales": {
+        "nombre": "Persona Prueba",
+        "profesion": "Ingeniero Eléctrico",
+        "profesiones": ["Ingeniero Eléctrico", "Científico de Datos"],
+        "ciudad": "Ciudad Secreta",
+        "telefono": "+57 300 123 4567",
+        "correo": "secreto@correo.com",
+        "linkedin": "linkedin.com/in/secreto",
+        "github": "github.com/secreto",
+        "foto": "foto_secreta.png",
+    },
+    "perfil_profesional": {"resumen": "Ingeniero eléctrico con análisis de datos."},
+    "experiencia": [
+        {
+            "empresa": "Green Mobil", "cargo": "Científico de Datos", "fechas": "Jul 2025 – Sep 2025",
+            "sectores": ["movilidad eléctrica"],
+            "descripcion": "Desarrollé modelos predictivos de desgaste de flota con Python y construí procesos ETL "
+                           "para consolidar telemetría y consumo energético en tableros de Power BI.",
+        },
+    ],
+    "software": ["Python", "Power BI", "SQL"],
+    "competencias": ["ETL", "Modelos predictivos"],
+}
+OFFER = "Buscamos Científico de Datos con Python, SQL y Databricks para el sector bancario."
+VALID_SUMMARY = (
+    "Soy Ingeniero Eléctrico y Científico de Datos con experiencia en análisis de datos. "
+    "He desarrollado modelos predictivos con Python y he construido procesos ETL para consolidar "
+    "telemetría y consumo energético en tableros de Power BI. Mi experiencia combina ingeniería "
+    "eléctrica, análisis de información y automatización de reportes, con foco en la calidad de los "
+    "datos, la documentación técnica y la mejora continua de procesos operativos en equipos de trabajo."
+)
+
+
+@pytest.fixture
+def fake_chat(monkeypatch):
+    """Sustituye la llamada a Groq; responde en orden con la lista `responses`."""
+    state = {"prompts": [], "responses": []}
+
+    def chat(system, user, json_mode=True, max_retries=3):
+        state["prompts"].append(system + "\n" + user)
+        response = state["responses"].pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr(llm, "chat", chat)
+    return state
+
+
+# --- Cliente Groq -----------------------------------------------------------
+
+class _Response(io.BytesIO):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        return False
+
+
+def _ok(content):
+    return _Response(json.dumps({"choices": [{"message": {"content": content}}]}).encode())
+
+
+def _http_error(code, retry_after=None, message="error"):
+    headers = Message()
+    if retry_after:
+        headers["retry-after"] = retry_after
+    body = io.BytesIO(json.dumps({"error": {"message": message}}).encode())
+    return error.HTTPError(client.GROQ_URL, code, "error", headers, body)
+
+
+@pytest.fixture
+def fake_urlopen(monkeypatch):
+    monkeypatch.setenv("APY_KEY", "sk-clave-falsa-123")
+    monkeypatch.delenv("GROQ_MODEL", raising=False)
+    state = {"requests": [], "responses": [], "sleeps": []}
+
+    def urlopen(req, timeout):
+        state["requests"].append(req)
+        response = state["responses"].pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
+
+    monkeypatch.setattr(client.request, "urlopen", urlopen)
+    monkeypatch.setattr(client.time, "sleep", state["sleeps"].append)
+    return state
+
+
+def test_client_sends_json_mode_and_default_model(fake_urlopen):
+    fake_urlopen["responses"] = [_ok('{"a": 1}')]
+
+    assert client.chat("reglas", "tarea") == {"a": 1}
+    body = json.loads(fake_urlopen["requests"][0].data)
+    assert body["model"] == client.DEFAULT_MODEL
+    assert body["temperature"] == 0.2
+    assert body["response_format"] == {"type": "json_object"}
+
+
+def test_client_retries_429_and_5xx_using_retry_after(fake_urlopen):
+    fake_urlopen["responses"] = [_http_error(429, retry_after="3"), _http_error(503), _ok('{"b": 2}')]
+
+    assert client.chat("reglas", "tarea") == {"b": 2}
+    assert fake_urlopen["sleeps"] == [3.0, 2.0]
+
+
+def test_client_error_message_never_contains_the_key(fake_urlopen):
+    fake_urlopen["responses"] = [_http_error(401, message="Invalid API Key")]
+
+    with pytest.raises(client.LLMError) as exc:
+        client.chat("reglas", "tarea")
+    assert "401" in str(exc.value)
+    assert "sk-clave-falsa-123" not in str(exc.value)
+
+
+def test_client_model_comes_from_env(monkeypatch):
+    monkeypatch.setenv("GROQ_MODEL", "otro/modelo")
+    assert client.model_name() == "otro/modelo"
+
+
+# --- Prompts y validación -----------------------------------------------------
+
+def test_prompts_never_send_personal_data(fake_chat):
+    fake_chat["responses"] = [{}, {}]
+
+    llm.analyze_offer_and_profile(OFFER, PROFILE)
+    llm.adapt_experiences_and_skills(PROFILE, PROFILE["experiencia"], OFFER)
+
+    sent = "\n".join(fake_chat["prompts"])
+    for key in ("nombre", "ciudad", "telefono", "correo", "linkedin", "github", "foto"):
+        assert PROFILE["datos_personales"][key] not in sent
+    assert "Científico de Datos" in sent  # profesiones sí viaja
+
+
+def test_summary_retry_does_not_resend_offer(fake_chat):
+    fake_chat["responses"] = [
+        {"cargo_detectado": "Científico de Datos", "prioridades": ["Python", "SQL"],
+         "resumen_profesional": "Experto en Databricks y banca."},
+        {"resumen_profesional": VALID_SUMMARY},
+    ]
+
+    analysis = llm.analyze_offer_and_profile(OFFER, PROFILE)
+
+    assert analysis["resumen_origen"] == "llm_reintento"
+    assert [attempt["valido"] for attempt in analysis["resumen_intentos"]] == [False, True]
+    assert OFFER not in fake_chat["prompts"][1]
+
+
+def test_api_failure_uses_local_fallback_without_retry(fake_chat):
+    fake_chat["responses"] = [llm.LLMError("Groq respondió HTTP 429")]
+
+    analysis = llm.analyze_offer_and_profile(OFFER, PROFILE)
+
+    assert len(fake_chat["prompts"]) == 1
+    assert analysis["resumen_origen"] == "fallback_local"
+    assert analysis["resumen_intentos"][0]["motivos_rechazo"] == ["Groq respondió HTTP 429"]
+
+
+INVENTED_EXPERIENCE = (
+    "Lideré proyectos de Databricks en el sector bancario para modelos de riesgo, "
+    "desarrollando pipelines en Databricks y reportes regulatorios para la banca."
+)
+FIXED_EXPERIENCE = (
+    "Desarrollé modelos predictivos de desgaste de flota con Python y construí procesos ETL "
+    "para consolidar telemetría y consumo energético en tableros de Power BI, con datos "
+    "ordenados para el seguimiento de la operación y de los modelos predictivos de la flota."
+)
+
+
+def test_invented_experience_falls_back_to_original_text(fake_chat):
+    experience = PROFILE["experiencia"][0]
+    fake_chat["responses"] = [
+        {"experiencias": [{"indice": 0, "descripcion_adaptada": INVENTED_EXPERIENCE}], "herramientas": ["Python"]},
+        {"experiencias": [{"indice": 0, "descripcion_adaptada": INVENTED_EXPERIENCE}]},
+    ]
+
+    result = llm.adapt_experiences_and_skills(PROFILE, [experience], OFFER, ["Banco Ejemplo"])
+
+    assert len(fake_chat["prompts"]) == 2
+    assert result["descripciones"] == [experience["descripcion"]]
+    assert result["diagnosticos"][0]["origen"] == "fallback_local"
+    assert result["diagnosticos"][0]["intentos"] == 2
+    assert any("databricks" in reason for reason in result["diagnosticos"][0]["motivo_fallback"])
+    assert result["habilidades"]["herramientas"] == ["Python"]
+
+
+def test_rejected_experience_retry_sends_forbidden_words_without_offer(fake_chat):
+    experience = PROFILE["experiencia"][0]
+    fake_chat["responses"] = [
+        {"experiencias": [{"indice": 0, "descripcion_adaptada": INVENTED_EXPERIENCE}]},
+        {"experiencias": [{"indice": 0, "descripcion_adaptada": FIXED_EXPERIENCE}]},
+    ]
+
+    result = llm.adapt_experiences_and_skills(PROFILE, [experience], OFFER)
+
+    retry_prompt = fake_chat["prompts"][1]
+    assert "PALABRAS PROHIBIDAS" in retry_prompt and "databricks" in retry_prompt
+    assert OFFER not in retry_prompt
+    assert result["descripciones"] == [FIXED_EXPERIENCE]
+    assert result["diagnosticos"][0]["origen"] == "llm_reintento"
+
+
+def test_experience_with_numbers_not_in_source_is_rejected():
+    experience = PROFILE["experiencia"][0]
+    issues = llm._experience_issues(FIXED_EXPERIENCE + " Reduje los costos en un 45%.", experience, OFFER, [])
+    assert any("cifras" in issue and "45" in issue for issue in issues)
+
+
+def test_summary_with_percentages_is_rejected():
+    issues = llm._summary_validation_issues(VALID_SUMMARY + " Mejoré la precisión en un 28%.", PROFILE, OFFER)
+    assert any("porcentajes" in issue for issue in issues)
+
+
+def test_model_text_is_normalized_for_pdf(fake_chat):
+    fake_chat["responses"] = [{"resumen_profesional": "Uso Scikit‑learn y Python."}]
+    assert llm._ask("tarea") == {"resumen_profesional": "Uso Scikit-learn y Python."}
+
+
+def test_accepted_experiences_make_no_retry(fake_chat):
+    experience = PROFILE["experiencia"][0]
+    fake_chat["responses"] = [{"experiencias": [{"indice": 0, "descripcion_adaptada": FIXED_EXPERIENCE}]}]
+
+    result = llm.adapt_experiences_and_skills(PROFILE, [experience], OFFER)
+
+    assert len(fake_chat["prompts"]) == 1
+    assert result["diagnosticos"][0]["origen"] == "llm"

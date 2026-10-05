@@ -1,7 +1,25 @@
 from docx import Document
 
-from src.engine import adapt_profile_to_offer, adapt_content_with_ollama, generate_all_cv_for_offers
+from src.engine import adapt_profile_to_offer, adapt_content_with_llm, generate_all_cv_for_offers
 from src.rendering.pdf_renderer import render_cv_to_pdf
+
+
+def llm_result(experiences, origin="fallback_local", herramientas=None):
+    """Respuesta simulada de adapt_experiences_and_skills (sin llamar a la API)."""
+    herramientas = herramientas or []
+    return {
+        "descripciones": [experience.get("descripcion", "") for experience in experiences],
+        "diagnosticos": [
+            {"llm_consultado": True, "llm_respondio": origin == "llm", "origen": origin,
+             "motivo_fallback": [] if origin == "llm" else ["respuesta vacía"], "texto_propuesto": ""}
+            for _ in experiences
+        ],
+        "habilidades": {"aptitudes_clave": [], "herramientas": herramientas, "nuevas_tecnologias": [], "competencias": []},
+        "diagnostico_habilidades": {
+            "llm_consultado": True, "llm_respondio": bool(herramientas),
+            "elementos_habilidad_propuestos": len(herramientas),
+        },
+    }
 
 
 def test_render_cv_to_pdf_creates_file(tmp_path):
@@ -45,7 +63,9 @@ def test_render_cv_to_pdf_accepts_structured_profile(tmp_path):
     assert output.stat().st_size > 0
 
 
-def test_generate_all_cv_for_offers_processes_batch(tmp_path):
+def test_generate_all_cv_for_offers_processes_batch(tmp_path, monkeypatch):
+    # Sin red: el modelo "no responde" y todo el flujo usa los respaldos locales.
+    monkeypatch.setattr("src.llm.llm.chat", lambda *args, **kwargs: {})
     offers_dir = tmp_path / "ofertas"
     offers_dir.mkdir()
     profiles_dir = tmp_path / "config"
@@ -112,8 +132,9 @@ def test_adapt_profile_to_offer_is_dynamic_for_any_offer():
 
     assert "Power BI" in adapted["keywords"]
     assert "SQL" in adapted["keywords"]
-    assert adapted["summary"]
-    assert "BI" in adapted["summary"].upper() or "ANALISTA" in adapted["summary"].upper()
+    # Sin resumen válido del modelo se usa el resumen escrito en el perfil maestro.
+    assert adapted["summary"] == "Ingeniero eléctrico"
+    assert adapted["summary_origin"] == "fallback_local"
 
 
 def test_adapted_keywords_differ_between_distinct_offers():
@@ -140,7 +161,6 @@ def test_adapted_keywords_differ_between_distinct_offers():
     assert "Visualización Power BI" in bi["keywords"]
     assert "Datos de telemetría" in fleet["keywords"]
     assert bi["keywords"] != fleet["keywords"]
-    assert bi["summary"] != fleet["summary"]
     assert bi["experiencia"][0]["empresa"] == "Green Movil"
     assert fleet["experiencia"][0]["empresa"] == "Green Movil"
     assert bi["experiencia"][-1]["empresa"] == "Enel"
@@ -157,21 +177,10 @@ def test_adapt_content_does_not_fill_unrelated_technologies(monkeypatch):
         "habilidades": ["Python", "Tableau", "AWS"],
         "certificaciones": [],
     }
-    def experience_fallback(experience, *args, diagnostics=None, **kwargs):
-        if diagnostics is not None:
-            diagnostics.update({"ollama_consultado": True, "ollama_respondio": False, "origen": "fallback_local", "motivo_fallback": ["respuesta vacía"]})
-        return experience.get("descripcion", "")
-
-    def empty_skill_result(*args, diagnostics=None, **kwargs):
-        if diagnostics is not None:
-            diagnostics.update({"ollama_consultado": True, "ollama_respondio": False, "elementos_habilidad_propuestos": 0})
-        return {"aptitudes_clave": [], "herramientas": [], "nuevas_tecnologias": [], "competencias": [], "logros": []}
-
-    monkeypatch.setattr(engine, "adapt_experience_to_offer", experience_fallback)
-    monkeypatch.setattr(engine, "adapt_skills_to_offer", empty_skill_result)
+    monkeypatch.setattr(engine, "adapt_experiences_and_skills", lambda profile, experiences, *args: llm_result(experiences))
     adapted = {"experiencia": [], "keywords": [], "logros": []}
 
-    result = adapt_content_with_ollama(profile, "Visualización de información con Tableau", adapted)
+    result = adapt_content_with_llm(profile, "Visualización de información con Tableau", adapted)
 
     assert result["software"] == ["Tableau", "Python", "AWS"]
     assert result["nuevas_tecnologias"] == ["Cloud", "AWS", "Claude"]
@@ -189,14 +198,10 @@ def test_sidebar_skill_groups_prioritize_offer_matches_then_fill_to_five(monkeyp
         "habilidades": [],
         "certificaciones": [],
     }
-    monkeypatch.setattr(engine, "adapt_experience_to_offer", lambda experience, *args, **kwargs: experience.get("descripcion", ""))
-    monkeypatch.setattr(engine, "adapt_skills_to_offer", lambda *args, **kwargs: {
-        "aptitudes_clave": [], "herramientas": [], "nuevas_tecnologias": [],
-        "competencias": [], "logros": [],
-    })
+    monkeypatch.setattr(engine, "adapt_experiences_and_skills", lambda profile, experiences, *args: llm_result(experiences))
     adapted = {"experiencia": [], "keywords": [], "logros": []}
 
-    result = adapt_content_with_ollama(
+    result = adapt_content_with_llm(
         profile,
         "Buscamos experiencia en Tableau, AWS y análisis predictivo.",
         adapted,
@@ -224,41 +229,33 @@ def test_adaptation_report_tracks_sources_and_priority_percentages(monkeypatch):
         "certificaciones": [],
     }
 
-    def accepted_experience(experience, *args, diagnostics=None, **kwargs):
-        if diagnostics is not None:
-            diagnostics.update({"ollama_consultado": True, "ollama_respondio": True, "origen": "ollama", "motivo_fallback": []})
-        return experience["descripcion"]
-
-    def skill_result(*args, diagnostics=None, **kwargs):
-        if diagnostics is not None:
-            diagnostics.update({"ollama_consultado": True, "ollama_respondio": True, "elementos_habilidad_propuestos": 1})
-        return {"aptitudes_clave": [], "herramientas": ["Tableau"], "nuevas_tecnologias": [], "competencias": [], "logros": []}
-
-    monkeypatch.setattr(engine, "adapt_experience_to_offer", accepted_experience)
-    monkeypatch.setattr(engine, "adapt_skills_to_offer", skill_result)
+    monkeypatch.setattr(
+        engine, "adapt_experiences_and_skills",
+        lambda profile, experiences, *args: llm_result(experiences, origin="llm", herramientas=["Tableau"]),
+    )
     adapted = {
         "summary": "Tableau para visualización de datos",
         "summary_origin": "fallback_local",
         "summary_match": {"porcentaje": 50, "coincidencias": 1, "prioridades_evaluadas": 2},
-        "analysis": {"resumen_intentos": [{"ollama_respondio": True, "valido": False, "motivos_rechazo": ["breve"]}]},
+        "analysis": {"resumen_intentos": [{"llm_respondio": True, "valido": False, "motivos_rechazo": ["breve"]}]},
         "analysis_priorities": ["Tableau", "Python avanzado"],
         "experiencia": [{"empresa": "Enel", "cargo": "Ingeniero", "descripcion": "Análisis de datos con Tableau."}],
         "keywords": [],
         "logros": [],
     }
 
-    result = adapt_content_with_ollama(profile, "Tableau Python avanzado", adapted)
+    result = adapt_content_with_llm(profile, "Tableau Python avanzado", adapted)
     report = result["reporte_adaptacion"]
 
     assert report["perfil"]["origen"] == "fallback_local"
-    assert report["perfil"]["uso_ollama_pct"] == 0
+    assert report["perfil"]["uso_llm_pct"] == 0
     assert report["perfil"]["intentos"] == 1
     assert report["perfil"]["causa_fallback"] == "breve"
-    assert report["experiencias"][0]["origen"] == "ollama"
-    assert report["experiencias"][0]["uso_ollama_pct"] == 100
+    assert report["experiencias"][0]["origen"] == "llm"
+    assert report["experiencias"][0]["uso_llm_pct"] == 100
     assert report["experiencias"][0]["final_match"] == "1/2 (50%)"
     assert report["habilidades"]["habilidades_coincidentes"] == 1
-    assert report["habilidades"]["uso_ollama_pct"] == 100
-    assert report["totales"]["porcentaje_bloques_ollama_aceptados"] == 50
+    assert report["habilidades"]["uso_llm_pct"] == 100
+    assert report["totales"]["porcentaje_bloques_llm_aceptados"] == 50
     assert "coincidencia_final" not in report["experiencias"][0]
     assert len(report["habilidades"]) == 5

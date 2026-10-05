@@ -1,4 +1,4 @@
-# CV Dinámico con IA Local
+# CV Dinámico con IA
 
 Generador de currículos personalizados por oferta laboral, construido para convertir
 una oferta en Word y un perfil profesional maestro en un PDF claro, orientado a ATS y
@@ -8,9 +8,9 @@ adaptado al contexto de cada vacante.
 > el perfil maestro sigue siendo la única fuente autorizada de hechos.
 
 ![Python](https://img.shields.io/badge/Python-3.13-3776AB?logo=python&logoColor=white)
-![Ollama](https://img.shields.io/badge/LLM-Ollama-black?logo=ollama&logoColor=white)
-![Model](https://img.shields.io/badge/Model-qwen2.5%3A7b-2E6572)
-![Tests](https://img.shields.io/badge/tests-7%20passing-2E7D32)
+![LLM](https://img.shields.io/badge/LLM-Groq%20API-F55036)
+![Model](https://img.shields.io/badge/Model-gpt--oss--120b-2E6572)
+![Tests](https://img.shields.io/badge/tests-19%20passing-2E7D32)
 ![License](https://img.shields.io/badge/status-personal%20project-173F4F)
 
 ## Qué resuelve
@@ -23,7 +23,7 @@ proyecto automatiza la adaptación sin perder trazabilidad:
 - Analiza cargo, seniority, prioridades y requisitos.
 - Compara la oferta contra un perfil maestro estructurado en JSON.
 - Prioriza habilidades, proyectos, experiencias y logros relevantes.
-- Usa Ollama local para mejorar la redacción y el enfoque del CV.
+- Usa un modelo de lenguaje vía la API de Groq para mejorar la redacción y el enfoque del CV.
 - Rechaza contenido no respaldado y activa un fallback factual cuando es necesario.
 - Genera un PDF profesional con diseño fijo y contenido adaptable.
 
@@ -35,7 +35,7 @@ flowchart LR
 	C[Perfil maestro JSON] --> D[Motor de trazabilidad]
 	B --> E[Análisis de la oferta]
 	D --> E
-	E --> F[Ollama local]
+	E --> F[Modelo vía Groq]
 	F --> G[Validación de hechos]
 	G -->|Válido| H[Contenido adaptado]
 	G -->|No válido| I[Fallback factual]
@@ -49,7 +49,8 @@ flowchart LR
 config/perfil_maestro.json  Fuente única de datos profesionales
 ofertas/*.docx              Ofertas que se quieren analizar
 src/extraction/             Lectura de documentos Word
-src/llm/                    Prompts, Ollama y validación de respuestas
+src/llm/client.py           Cliente de la API de Groq (reintentos, errores sin la clave)
+src/llm/llm.py              Prompts, reglas de veracidad y validación de respuestas
 src/matching/               Comparación de requisitos y habilidades
 src/validation/             Validación de afirmaciones contra el perfil
 src/rendering/              Renderizado del PDF y plantilla visual
@@ -66,7 +67,7 @@ El sistema separa tres conceptos:
 | --- | --- | --- |
 | Perfil maestro | Definir experiencia, herramientas, proyectos, fechas y métricas | Ser alterado por una oferta |
 | Oferta laboral | Priorizar énfasis, orden y palabras clave existentes | Convertirse en experiencia del candidato |
-| Ollama | Mejorar redacción y adaptar el foco | Inventar cargos, sectores, tecnologías o resultados |
+| Modelo de lenguaje | Mejorar redacción y adaptar el foco | Inventar cargos, sectores, tecnologías o resultados |
 
 Antes de aceptar una respuesta del modelo se revisa, entre otros aspectos:
 
@@ -81,8 +82,8 @@ Antes de aceptar una respuesta del modelo se revisa, entre otros aspectos:
 ## Requisitos
 
 - Python 3.13 o compatible.
-- Ollama instalado y ejecutándose localmente.
-- Modelo `qwen2.5:7b` descargado.
+- Una clave de API de Groq ([console.groq.com/keys](https://console.groq.com/keys)). El plan
+  gratuito alcanza para uso personal (8.000 tokens por minuto y 200.000 por día).
 
 Instalar dependencias:
 
@@ -90,26 +91,23 @@ Instalar dependencias:
 pip install -r requirements.txt
 ```
 
-Preparar Ollama:
+Copia `.env.example` como `.env` y escribe tu clave en `APY_KEY`. Variables opcionales:
 
-```powershell
-ollama pull qwen2.5:7b
-ollama serve
-```
+| Variable | Uso |
+| --- | --- |
+| `GROQ_MODEL` | Modelo de Groq. Si no se define, se usa el valor por defecto de `src/llm/client.py`. |
+| `GROQ_TIMEOUT` | Segundos de espera por respuesta (por defecto 60). |
+| `GROQ_REASONING_EFFORT` | Esfuerzo de razonamiento (por defecto `low`). Vacía si el modelo no razona. |
 
-El proyecto puede configurarse mediante `.env`:
-
-```env
-OLLAMA_HOST=http://127.0.0.1:11434
-OLLAMA_MODEL=qwen2.5:7b
-OLLAMA_TIMEOUT=75
-```
+Cada oferta usa dos llamadas al modelo (análisis + resumen, y experiencias + habilidades)
+y una tercera solo si el resumen no pasa la validación. Ante un límite de uso (HTTP 429)
+el cliente espera lo que indica Groq y reintenta.
 
 ## Uso
 
 1. Coloca una o varias ofertas `.docx` en `ofertas/`.
 2. Actualiza los datos reales en `config/perfil_maestro.json`.
-3. Asegúrate de que Ollama esté ejecutándose.
+3. Verifica que `.env` tenga tu `APY_KEY`.
 4. Genera los CVs:
 
 ```powershell
@@ -121,23 +119,19 @@ detectado, el modelo utilizado, el nivel del rol y los bloques adaptados.
 
 ## Pruebas
 
-Ejecutar toda la suite:
+Ejecutar toda la suite (usa mocks, no llama a la API ni gasta tokens):
 
 ```powershell
 pytest -q
 ```
 
-Ejecutar las pruebas rápidas sin el caso de generación batch contra Ollama:
-
-```powershell
-pytest -q -k "not test_generate_all_cv_for_offers_processes_batch"
-```
-
 ## Privacidad y diseño
 
-La inferencia se ejecuta con Ollama en el equipo local. El motor envía al modelo
-texto extraído de la oferta y el perfil maestro serializado como JSON; no envía
-archivos Word, PDFs ni fotografías al servicio de un proveedor externo.
+La inferencia se ejecuta en los servidores de Groq. El motor envía el texto de la oferta,
+las experiencias, las habilidades y la formación del perfil maestro. De los datos personales
+solo se envían `profesion` y `profesiones`: nunca nombre, teléfono, correo, ciudad, LinkedIn,
+GitHub ni foto, y tampoco archivos Word ni PDF. La clave de API solo viaja en el header de
+autorización y no aparece en registros ni mensajes de error.
 
 La plantilla visual del CV permanece estable para que cada oferta cambie el contenido
 y el énfasis, no la identidad del documento. El resultado conserva una estructura de
@@ -145,7 +139,7 @@ dos columnas, secciones legibles y un formato adecuado para revisión humana y A
 
 ## Estado del proyecto
 
-Proyecto personal funcional para generación de CVs dinámicos con IA local. Las áreas
+Proyecto personal funcional para generación de CVs dinámicos con IA. Las áreas
 principales de evolución son mejorar la evaluación semántica de requisitos, ampliar
 la cobertura de pruebas de generación y añadir una interfaz de usuario para ejecutar
 el flujo sin comandos.
