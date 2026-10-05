@@ -252,6 +252,24 @@ def test_logros_keep_at_least_four_preferring_offer_and_non_repeated(monkeypatch
     assert "Reducción del 40% en accidentes de obra." not in result["logros"]  # repite la experiencia
 
 
+def test_sidebar_prefers_tools_mentioned_in_cv_and_skips_near_duplicates(monkeypatch):
+    import src.engine as engine
+
+    profile = {
+        "aptitudes": [], "nuevas_tecnologias": [], "habilidades": [], "certificaciones": [],
+        "software": ["Python", "MetaTrader 5", "Power BI", "Visualización Power BI", "Excel", "AutoCAD",
+                     "SAP", "Trello", "Jira", "Tableau"],
+        "competencias": [],
+    }
+    monkeypatch.setattr(engine, "adapt_experiences_and_skills", lambda profile, experiences, *args: llm_result(experiences))
+    adapted = {"summary": "Soy analista y uso Tableau a diario.", "experiencia": [], "keywords": [], "logros": []}
+
+    result = adapt_content_with_llm(profile, "Buscamos analista con Python y Power BI", adapted)
+
+    assert result["software"][:3] == ["Python", "Power BI", "Tableau"]  # oferta, luego lo que el CV menciona
+    assert "Visualización Power BI" not in result["software"]  # casi duplicado de "Power BI"
+
+
 def test_adaptation_report_tracks_sources_and_priority_percentages(monkeypatch):
     import src.engine as engine
 

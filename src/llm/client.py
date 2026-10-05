@@ -14,6 +14,9 @@ load_dotenv()
 
 GROQ_URL = "https://api.groq.com/openai/v1/chat/completions"
 DEFAULT_MODEL = "openai/gpt-oss-120b"
+# "medium" sigue mejor las reglas de redacción que "low"; "high" puede superar por sí
+# sola el límite gratuito de 8.000 tokens por minuto en la llamada de experiencias.
+DEFAULT_REASONING_EFFORT = "medium"
 _RETRY_STATUS = {429, 500, 502, 503, 504}
 _MAX_WAIT_SECONDS = 60
 
@@ -64,9 +67,9 @@ def chat(system, user, json_mode=True, max_retries=3):
     }
     if json_mode:
         payload["response_format"] = {"type": "json_object"}
-    # Modelos de razonamiento (gpt-oss, qwen3): poco razonamiento y sin devolverlo,
-    # para no gastar tokens del límite por minuto. Vacío = no enviar estos campos.
-    reasoning_effort = os.getenv("GROQ_REASONING_EFFORT", "low").strip()
+    # Modelos de razonamiento (gpt-oss, qwen3): el razonamiento no se devuelve, para no
+    # gastar tokens de más. GROQ_REASONING_EFFORT vacía = no enviar estos campos.
+    reasoning_effort = os.getenv("GROQ_REASONING_EFFORT", DEFAULT_REASONING_EFFORT).strip()
     if reasoning_effort:
         payload["reasoning_effort"] = reasoning_effort
         payload["include_reasoning"] = False
@@ -91,6 +94,11 @@ def chat(system, user, json_mode=True, max_retries=3):
                 time.sleep(_wait_seconds(exc, attempt))
                 continue
             detail = _error_detail(exc)
+            # 400 "Failed to generate JSON": el modelo produjo un JSON inválido en esa
+            # generación; es ocasional, así que se repite la misma petición.
+            if exc.code == 400 and "json" in detail.casefold() and attempt < max_retries:
+                time.sleep(1)
+                continue
             raise LLMError(f"Groq respondió HTTP {exc.code}" + (f": {detail}" if detail else "")) from None
         except error.URLError as exc:
             raise LLMError(f"No se pudo conectar con Groq ({exc.reason})") from None

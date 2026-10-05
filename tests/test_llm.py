@@ -115,6 +115,23 @@ def test_client_retries_429_and_5xx_using_retry_after(fake_urlopen):
     assert fake_urlopen["sleeps"] == [3.0, 2.0]
 
 
+def test_client_retries_when_model_fails_to_generate_json(fake_urlopen):
+    fake_urlopen["responses"] = [
+        _http_error(400, message="Failed to generate JSON. Please adjust your prompt."),
+        _ok('{"c": 3}'),
+    ]
+
+    assert client.chat("reglas", "tarea") == {"c": 3}
+
+
+def test_client_does_not_retry_other_400_errors(fake_urlopen):
+    fake_urlopen["responses"] = [_http_error(400, message="model not found")]
+
+    with pytest.raises(client.LLMError):
+        client.chat("reglas", "tarea")
+    assert len(fake_urlopen["requests"]) == 1
+
+
 def test_client_error_message_never_contains_the_key(fake_urlopen):
     fake_urlopen["responses"] = [_http_error(401, message="Invalid API Key")]
 
@@ -130,6 +147,12 @@ def test_client_model_comes_from_env(monkeypatch):
 
 
 # --- Prompts y validación -----------------------------------------------------
+
+def test_local_role_extraction_ignores_lowercase_phrases():
+    offer = "Promover la analítica avanzada e inteligencia artificial como habilitadores de la estrategia."
+    assert llm._extract_role_from_offer(offer) == "NO_EVIDENCIADO"
+    assert llm._extract_role_from_offer("buscamos Analista de Riesgo.") == "Analista de Riesgo"
+
 
 def test_prompts_never_send_personal_data(fake_chat):
     fake_chat["responses"] = [{}, {}]
@@ -249,6 +272,23 @@ def test_offer_terms_used_anywhere_in_profile_are_allowed_in_experiences():
     assert not any("términos" in issue for issue in llm._experience_issues(text, experience, offer, [], profile))
     issues = llm._experience_issues(text + " Usé Databricks.", experience, offer, [], profile)
     assert any("databricks" in issue for issue in issues)
+
+
+def test_offer_wording_is_style_but_offer_requirements_are_rejected():
+    offer = "Comunicar hallazgos a líderes. Requisito: Databricks."
+    requirements = ["Databricks", "Comunicación de resultados"]
+    text = VALID_SUMMARY + " Comunico hallazgos con claridad."
+
+    hard = llm._summary_validation_issues(text, PROFILE, offer, include_style=False, requirements=requirements)
+    style = llm._summary_validation_issues(text, PROFILE, offer, requirements=requirements)
+    assert not hard
+    assert any("vocabulario" in issue and "hallazgos" in issue for issue in style)
+
+    claimed = llm._summary_validation_issues(text + " Uso Databricks.", PROFILE, offer,
+                                             include_style=False, requirements=requirements)
+    assert any("databricks" in issue for issue in claimed)
+    # Sin lista de requisitos (análisis fallido) todo término sin respaldo rechaza.
+    assert llm._summary_validation_issues(text, PROFILE, offer, include_style=False)
 
 
 def test_overclaims_are_rejected_unless_source_says_so():

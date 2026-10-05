@@ -34,7 +34,7 @@ REGLAS DE VERACIDAD (obligatorias):
 5. El trabajo independiente no es una empresa: escribe "Como consultor freelance", nunca "En Consultor Freelance".
 6. Escribe en primera persona, como texto propio del CV. Nada de tercera persona ni frases meta ("el candidato", "el profesional", "según la oferta", "perfil maestro", "mi perfil se adapta", "para el puesto de", "como se solicita").
 7. No nombres la empresa de la oferta, no la menciones ni describas tareas futuras.
-8. Cada cifra debe quedar unida al mismo resultado y proyecto que en la fuente; nunca la traslades a otro logro ni la cambies.
+8. Cada cifra debe quedar unida al mismo resultado y a la misma acción que en la fuente; nunca la traslades a otro logro ni la cambies. Puedes reordenar las ideas, pero si la fuente dice "Construí informes… mejorando un X%", no escribas "Implementé tableros… mejorando un X%".
 9. No exageres el alcance: si la fuente dice "insumo técnico para la certificación", no escribas que lograste o permitiste la certificación; no cambies "construí" o "desarrollé" por "lideré" si la fuente no dice que lideraste.
 10. Respeta las mayúsculas de nombres propios y tecnologías.
 11. Responde solo con el JSON pedido."""
@@ -96,9 +96,15 @@ def _overclaim_issues(text, source):
     ]
 
 
-def _summary_validation_issues(summary, profile, offer_text, include_style=True):
+def _summary_validation_issues(summary, profile, offer_text, include_style=True, requirements=None):
     """Motivos de rechazo del resumen. include_style=False deja solo los de veracidad y
-    formato obligatorio (sin la regla de la "y" ni las muletillas)."""
+    formato obligatorio (sin la regla de la "y" ni las muletillas).
+
+    requirements: requisitos de la oferta detectados en el análisis. Un término de la
+    oferta sin respaldo en el perfil es de veracidad si forma parte de esos requisitos
+    (se atribuiría algo que no se tiene); si es solo vocabulario, es de estilo. Sin lista
+    de requisitos, todos cuentan como veracidad.
+    """
     issues = []
     summary_text = str(summary or "")
     if len(summary_text.split()) < 60:
@@ -135,14 +141,24 @@ def _summary_validation_issues(summary, profile, offer_text, include_style=True)
         term for term in (offer_terms & summary_terms)
         if _stem(term) not in profile_stems
     ]
-    if invented:
-        issues.append("incluye términos de oferta sin evidencia: " + ", ".join(sorted(invented)))
+    if requirements:
+        requirement_stems = _stems_of(" ".join(str(item) for item in requirements))
+        claimed = sorted(term for term in invented if _stem(term) in requirement_stems)
+        wording = sorted(term for term in invented if _stem(term) not in requirement_stems)
+    else:
+        claimed, wording = sorted(invented), []
+    if claimed:
+        issues.append("incluye términos de oferta sin evidencia: " + ", ".join(claimed))
+    if wording and include_style:
+        issues.append("usa vocabulario de la oferta que no está en el perfil: " + ", ".join(wording))
     return issues
 
 
-def summary_is_factual(summary, profile, offer_text):
+def summary_is_factual(summary, profile, offer_text, requirements=None):
     """Valida veracidad y formato obligatorio (los detalles de estilo no cuentan)."""
-    return not _summary_validation_issues(summary, profile, offer_text, include_style=False)
+    return not _summary_validation_issues(
+        summary, profile, offer_text, include_style=False, requirements=requirements
+    )
 
 
 def _compact(data):
@@ -191,12 +207,14 @@ def _extract_role_from_offer(offer_text):
     for pattern, role in role_patterns:
         if re.search(pattern, offer_text or "", flags=re.IGNORECASE):
             return role
+    # Solo las palabras guía ignoran mayúsculas; el cargo debe empezar con mayúscula.
+    # (Antes "como" + IGNORECASE tomaba frases como "como habilitadores de la estrategia".)
     patterns = (
-        r"(?:buscamos|vacante para|como)\s+(?:un\(?a\)?\s+)?([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ& ]{3,60})",
-        r"(?:rol|cargo)\s+(?:de|para)\s+([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ& ]{3,60})",
+        r"(?i:buscamos|vacante para)\s+(?i:un\(?a\)?\s+)?([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ& ]{3,60})",
+        r"(?i:rol|cargo)\s+(?i:de|para)\s+([A-ZÁÉÍÓÚÑ][\wÁÉÍÓÚÑáéíóúñ& ]{3,60})",
     )
     for pattern in patterns:
-        match = re.search(pattern, offer_text or "", flags=re.IGNORECASE)
+        match = re.search(pattern, offer_text or "")
         if match:
             role = re.split(r"[.,!?:;\n]", match.group(1))[0].strip()
             role = re.sub(r"\s+", " ", role)
@@ -493,6 +511,16 @@ EJEMPLO DE ESTILO (es otra persona y otra profesión: imita solo el tono y la es
 "Soy Arquitecta, especialista en vivienda social, con más de diez años de trayectoria en proyectos públicos. Diseño conjuntos habitacionales que equilibran costo, normativa y calidad de vida. Coordino equipos de obra y consultores para cumplir cronogramas exigentes. Trabajo con AutoCAD, Revit y Excel para presupuestar con precisión. Mi diferencial es entender a la vez el diseño, la obra y a las comunidades que la habitan.\""""
 
 
+def offer_requirements(analysis):
+    """Requisitos de la oferta según el análisis del modelo (prioridades + no evidenciados)."""
+    items = []
+    for key in ("prioridades", "palabras_clave", "requisitos_no_evidenciados"):
+        value = (analysis or {}).get(key)
+        if isinstance(value, list):
+            items += [str(item) for item in value]
+    return items
+
+
 def analyze_offer_and_profile(offer_text, profile):
     """Una llamada analiza la oferta y redacta el resumen; reintenta solo el resumen si se rechaza."""
     if not offer_text or not isinstance(profile, dict):
@@ -530,13 +558,18 @@ PERFIL:
     if not isinstance(overview.get("requisitos_no_evidenciados"), list):
         overview["requisitos_no_evidenciados"] = []
 
+    requirements = offer_requirements(overview) if overview_responded else None
+
     def review(text, responded):
         """Problemas de veracidad (rechazan siempre) y de estilo (piden reintento)."""
         if not responded:
             return {"llm_respondio": False, "valido": False, "texto_propuesto": "",
                     "motivos_rechazo": [_LAST_LLM_ERROR or "el modelo no respondió"], "advertencias_estilo": []}
-        hard = _summary_validation_issues(text, profile, offer_text, include_style=False)
-        style = [issue for issue in _summary_validation_issues(text, profile, offer_text) if issue not in hard]
+        hard = _summary_validation_issues(text, profile, offer_text, include_style=False, requirements=requirements)
+        style = [
+            issue for issue in _summary_validation_issues(text, profile, offer_text, requirements=requirements)
+            if issue not in hard
+        ]
         return {"llm_respondio": True, "valido": not hard, "texto_propuesto": text,
                 "motivos_rechazo": hard, "advertencias_estilo": style}
 
@@ -550,7 +583,7 @@ PERFIL:
         issues = first["motivos_rechazo"] + first["advertencias_estilo"]
         rejected_terms = []
         for issue in issues:
-            if "términos de oferta sin evidencia" in issue:
+            if "términos de oferta sin evidencia" in issue or "vocabulario de la oferta" in issue:
                 rejected_terms += [t.strip() for t in issue.split(":", 1)[1].split(",") if t.strip()]
         forbidden_line = (
             "PALABRAS PROHIBIDAS (vienen de la oferta y no están en mi perfil; no las uses ni sus variantes): "

@@ -11,8 +11,10 @@ from src.extraction.word_reader import extract_text_from_docx
 from src.llm.llm import (
     adapt_experiences_and_skills,
     analyze_offer_and_profile,
+    offer_requirements,
     summary_is_factual,
     _significant_terms,
+    _stems_of,
 )
 from src.matching.matcher import classify_requirements
 from src.rendering.pdf_renderer import build_cv_html, render_cv_to_pdf_model
@@ -166,7 +168,10 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
     llm_accepted = (
         len(llm_summary.split()) >= 60
         and llm_summary != "NO_EVIDENCIADO"
-        and summary_is_factual(llm_summary, profile, offer_text)
+        and summary_is_factual(
+            llm_summary, profile, offer_text,
+            requirements=offer_requirements(analysis) if (analysis or {}).get("analisis_oferta_llm_respondio") else None,
+        )
     )
     if llm_accepted:
         summary = llm_summary
@@ -325,27 +330,61 @@ def adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies=Non
         if item in relevant_items(new_technology_source)
     ]
 
-    def fill_from_master(selected, source, minimum=5):
-        ordered_source = relevant_items(source) + [
-            item for item in source if item not in relevant_items(source)
-        ]
-        for item in ordered_source:
-            if item not in selected:
-                selected.append(item)
+    # Para que la barra lateral coincida con el texto del CV, después de lo que pide la
+    # oferta se priorizan los elementos que el propio CV menciona (primero el perfil
+    # profesional, luego las experiencias) y al final el resto en el orden del perfil.
+    summary_stems = _stems_of(adapted.get("summary", ""))
+    experience_stems = _stems_of(" ".join(str(item.get("descripcion", "")) for item in adapted_experience))
+
+    def mention_rank(item):
+        stems = _stems_of(str(item))
+        if not stems:
+            return 2
+        if len(stems & summary_stems) / len(stems) >= 0.5:
+            return 0
+        if len(stems & experience_stems) / len(stems) >= 0.5:
+            return 1
+        return 2
+
+    def near_duplicate(item, others):
+        """Casi duplicado: todas las palabras de uno están contenidas en el otro
+        (p. ej. "Power BI" y "Visualización Power BI")."""
+        stems = _stems_of(str(item))
+        for other in others:
+            other_stems = _stems_of(str(other))
+            if stems and other_stems and (stems <= other_stems or other_stems <= stems):
+                return True
+        return False
+
+    def fill_from_master(selected, source, minimum=5, model_choice=()):
+        relevant = relevant_items(source)
+        chosen = [item for item in model_choice if item in source and item not in relevant]
+        rest = sorted((item for item in source if item not in relevant and item not in chosen), key=mention_rank)
+        for item in relevant + chosen + rest:
             if len(selected) >= minimum:
                 break
+            if item not in selected and not near_duplicate(item, selected):
+                selected.append(item)
         return selected
 
-    selected_aptitudes = fill_from_master(selected_aptitudes, aptitude_source)
-    selected_tools = fill_from_master(selected_tools, software_source, minimum=8)
-    selected_competencies = fill_from_master(
-        selected_competencies, competency_source, minimum=6
+    selected_aptitudes = fill_from_master(
+        selected_aptitudes, aptitude_source, model_choice=verified_items(skills_result.get("aptitudes_clave", []))
     )
-    selected_new_technologies = fill_from_master(selected_new_technologies, new_technology_source)
+    selected_tools = fill_from_master(
+        selected_tools, software_source, minimum=8, model_choice=verified_items(skills_result.get("herramientas", []))
+    )
+    selected_competencies = fill_from_master(
+        selected_competencies, competency_source, minimum=6,
+        model_choice=verified_items(skills_result.get("competencias", [])),
+    )
+    selected_new_technologies = fill_from_master(
+        selected_new_technologies, new_technology_source,
+        model_choice=verified_items(skills_result.get("nuevas_tecnologias", [])),
+    )
     selected_skills = []
     for item in matched_aptitudes + matched_tools + matched_competencies:
         verified = allowed.get(str(item).strip().casefold())
-        if verified and verified not in selected_skills:
+        if verified and verified not in selected_skills and not near_duplicate(verified, selected_skills):
             selected_skills.append(verified)
 
     skill_source = (
@@ -355,7 +394,7 @@ def adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies=Non
         + profile.get("habilidades", [])
     )
     for skill in relevant_items(skill_source):
-        if skill not in selected_skills:
+        if skill not in selected_skills and not near_duplicate(skill, selected_skills):
             selected_skills.append(skill)
         if len(selected_skills) >= 14:
             break

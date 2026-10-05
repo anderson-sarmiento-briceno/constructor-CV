@@ -660,7 +660,13 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     ]
 
     def add_section(title):
-        main_story.extend([para(title, section_style), HRFlowable(width="100%", thickness=1.2, color=teal, spaceBefore=1, spaceAfter=4)])
+        # El título y su línea se mantienen con el primer contenido de la sección, para
+        # que un título no quede solo al final de una página.
+        heading = para(title, section_style)
+        rule = HRFlowable(width="100%", thickness=1.2, color=teal, spaceBefore=1, spaceAfter=4)
+        heading.keepWithNext = 1
+        rule.keepWithNext = 1
+        main_story.extend([heading, rule])
 
     add_section("PERFIL PROFESIONAL")
     main_story.append(para(summary, body_style))

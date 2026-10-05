@@ -97,7 +97,7 @@ Copia `.env.example` como `.env` y escribe tu clave en `APY_KEY`. Variables opci
 | --- | --- |
 | `GROQ_MODEL` | Modelo de Groq. Si no se define, se usa el valor por defecto de `src/llm/client.py`. |
 | `GROQ_TIMEOUT` | Segundos de espera por respuesta (por defecto 60). |
-| `GROQ_REASONING_EFFORT` | Esfuerzo de razonamiento (por defecto `low`). Vacía si el modelo no razona. |
+| `GROQ_REASONING_EFFORT` | Esfuerzo de razonamiento (`low`, `medium` o `high`; por defecto el de `src/llm/client.py`). Vacía si el modelo no razona. |
 
 Cada oferta usa dos llamadas al modelo (análisis + resumen, y experiencias + habilidades)
 y una tercera solo si el resumen no pasa la validación. Ante un límite de uso (HTTP 429)
