@@ -73,7 +73,32 @@ def _unevidenced_offer_terms(generated_text, offer_text, source_fact):
     return {term for term in candidate_terms if _stem(term) not in source_stems}
 
 
-def _summary_validation_issues(summary, profile, offer_text):
+_SUMMARY_CLICHES = (
+    "puedo aportar", "mi capacidad para", "me desempeño en", "decisiones estratégicas",
+    "conocimiento profundo", "soluciones escalables", "insights accionables",
+)
+
+
+# Exageraciones que el modelo repitió aunque el prompt las prohíbe: solo se aceptan
+# si la fuente dice lo mismo (patrón buscado en el texto, motivo del rechazo).
+_OVERCLAIMS = (
+    (r"\blider\w*", "afirma liderazgo que la fuente no menciona"),
+    (r"\b(?:permiti\w*|logr\w*|obtuv\w*|consegu\w*|alcanz\w*)\b[^.]{0,40}\bcertificaci",
+     "afirma haber logrado una certificación; la fuente solo dice que aportó a ella"),
+)
+
+
+def _overclaim_issues(text, source):
+    source_text = json.dumps(source, ensure_ascii=False) if not isinstance(source, str) else source
+    return [
+        reason for pattern, reason in _OVERCLAIMS
+        if re.search(pattern, text or "", re.IGNORECASE) and not re.search(pattern, source_text, re.IGNORECASE)
+    ]
+
+
+def _summary_validation_issues(summary, profile, offer_text, include_style=True):
+    """Motivos de rechazo del resumen. include_style=False deja solo los de veracidad y
+    formato obligatorio (sin la regla de la "y" ni las muletillas)."""
     issues = []
     summary_text = str(summary or "")
     if len(summary_text.split()) < 60:
@@ -94,6 +119,14 @@ def _summary_validation_issues(summary, profile, offer_text):
         issues.append("contiene frases meta o tercera persona")
     if "%" in summary_text or "por ciento" in summary_lower:
         issues.append("incluye porcentajes (van en la sección de experiencia)")
+    issues.extend(_overclaim_issues(summary_text, profile))
+    if include_style:
+        cliches = [phrase for phrase in _SUMMARY_CLICHES if phrase in summary_lower]
+        if cliches:
+            issues.append("usa muletillas: " + ", ".join(cliches))
+        for sentence in re.split(r"(?<=[.!?])\s+", summary_text):
+            if len(re.findall(r"\b[ye]\b", sentence.casefold())) > 1:
+                issues.append(f'oración con más de una "y" (divídela o usa comas): «{sentence.strip()}»')
 
     offer_terms = {term for term in _significant_terms(offer_text) if len(term) >= 4}
     summary_terms = _significant_terms(summary)
@@ -102,14 +135,14 @@ def _summary_validation_issues(summary, profile, offer_text):
         term for term in (offer_terms & summary_terms)
         if _stem(term) not in profile_stems
     ]
-    if len(invented) >= 2:
+    if invented:
         issues.append("incluye términos de oferta sin evidencia: " + ", ".join(sorted(invented)))
     return issues
 
 
 def summary_is_factual(summary, profile, offer_text):
-    """Valida primera persona y rechaza varias afirmaciones sin respaldo literal."""
-    return not _summary_validation_issues(summary, profile, offer_text)
+    """Valida veracidad y formato obligatorio (los detalles de estilo no cuentan)."""
+    return not _summary_validation_issues(summary, profile, offer_text, include_style=False)
 
 
 def _compact(data):
@@ -125,9 +158,10 @@ def _compact(data):
 
 
 def _normalize(value):
-    """Reemplaza en todos los textos de la respuesta los caracteres que el PDF no puede mostrar."""
+    """Limpia los textos de la respuesta: caracteres que el PDF no puede mostrar y
+    porcentajes con espacio ("35 %" -> "35%") para que todo el CV use el mismo formato."""
     if isinstance(value, str):
-        return value.translate(_UNICODE_FIXES)
+        return re.sub(r"(\d)\s+%", r"\1%", value.translate(_UNICODE_FIXES))
     if isinstance(value, list):
         return [_normalize(item) for item in value]
     if isinstance(value, dict):
@@ -224,8 +258,10 @@ def _uses_present_tense_for_completed_role(description, experience):
     dates = str(experience.get("fechas", "")).casefold()
     if not dates or any(marker in dates for marker in ("actualidad", "presente", "current", "present")):
         return False
+    # Sin "diseño" ni "desarrollo": también son sustantivos ("el diseño de redes")
+    # y provocaban rechazos falsos.
     present_forms = {
-        "planifico", "diseño", "ejecuto", "lidero", "dirijo", "desarrollo", "implemento",
+        "planifico", "ejecuto", "lidero", "dirijo", "implemento",
         "construyo", "utilizo", "realizo", "participo", "integro", "analizo", "gestiono",
         "coordino", "construye", "desarrolla", "implementa", "utiliza", "realiza",
         "participa", "integra", "lidera", "dirige", "planifica", "ejecuta",
@@ -243,8 +279,14 @@ _EVALUATOR_PHRASES = (
 )
 
 
-def _experience_issues(description, experience, offer_text, forbidden_companies):
-    """Motivos para rechazar una experiencia reescrita (lista vacía = aceptada)."""
+def _experience_issues(description, experience, offer_text, forbidden_companies, profile=None):
+    """Motivos para rechazar una experiencia reescrita (lista vacía = aceptada).
+
+    Un término de la oferta se permite si aparece en algún lugar del perfil (no solo en
+    esta experiencia): así las palabras de uso general que la persona sí usa no provocan
+    rechazos, y lo que solo trae la oferta se sigue bloqueando. Las cifras y las
+    exageraciones se validan contra esta experiencia en particular.
+    """
     source_words = {
         word.casefold()
         for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{5,}", experience.get("descripcion", ""))
@@ -253,7 +295,7 @@ def _experience_issues(description, experience, offer_text, forbidden_companies)
         word.casefold()
         for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{5,}", description)
     }
-    unevidenced = _unevidenced_offer_terms(description, offer_text, experience)
+    unevidenced = _unevidenced_offer_terms(description, offer_text, profile or experience)
     number_pattern = r"\d+(?:[.,]\d+)?"
     new_numbers = (
         set(re.findall(number_pattern, description))
@@ -272,6 +314,7 @@ def _experience_issues(description, experience, offer_text, forbidden_companies)
         issues.append("términos no respaldados: " + ", ".join(sorted(unevidenced)))
     if new_numbers:
         issues.append("cifras que no están en esta experiencia: " + ", ".join(sorted(new_numbers)))
+    issues.extend(_overclaim_issues(description, experience))
     if _uses_present_tense_for_completed_role(description, experience):
         issues.append("usa presente para una experiencia finalizada")
     return issues
@@ -330,44 +373,47 @@ HABILIDADES:
 {_compact(skills_source)}"""
     result = _ask(prompt)
     proposals = _experience_proposals(result)
+    def issues_of(text, experience):
+        return _experience_issues(text, experience, offer_text, forbidden_companies, profile)
+
     reviews = {
-        index: _experience_issues(proposals.get(index, ""), experience, offer_text, forbidden_companies)
+        index: issues_of(proposals.get(index, ""), experience)
         for index, experience in enumerate(experiences)
     }
 
-    # Reintento solo de las experiencias rechazadas: se envía el texto rechazado,
-    # los motivos y las palabras prohibidas, sin reenviar la oferta ni las habilidades.
+    # Reintento de cada experiencia rechazada en su propia llamada (juntas, el modelo
+    # mezclaba cifras entre experiencias): texto rechazado, motivos y palabras prohibidas,
+    # sin reenviar la oferta ni las habilidades.
     rejected = [index for index, issues in reviews.items() if issues] if result else []
     retry_proposals = {}
-    if rejected:
+    for index in rejected:
         forbidden_terms = sorted({
             term.strip()
-            for index in rejected
             for issue in reviews[index] if issue.startswith("términos no respaldados")
             for term in issue.split(":", 1)[1].split(",") if term.strip()
         })
         forbidden_line = (
-            "PALABRAS PROHIBIDAS (no están en mis experiencias; no las uses ni sus variantes): "
+            "PALABRAS PROHIBIDAS (no están en mi perfil; no las uses ni sus variantes): "
             + ", ".join(forbidden_terms) + "\n"
         ) if forbidden_terms else ""
-        rejected_payload = _compact([
-            {"indice": index, "texto_rechazado": proposals.get(index, ""), "motivos": reviews[index],
-             "experiencia_fuente": experiences[index]}
-            for index in rejected
-        ])
-        retry_prompt = f"""TAREA: corrige estas descripciones de experiencia, que fueron rechazadas.
+        retry_prompt = f"""TAREA: corrige esta descripción de experiencia, que fue rechazada.
 
 Devuelve JSON con esta forma:
-{{"experiencias":[{{"indice":0,"descripcion_adaptada":"..."}}]}}
+{{"descripcion_adaptada":"..."}}
 
-- Parte del TEXTO RECHAZADO y corrige solo lo que indican sus motivos; conserva su enfoque.
-- Entre 80 y 130 palabras, en primera persona, solo con hechos y vocabulario de ESA experiencia fuente.
+- Parte del TEXTO RECHAZADO y corrige solo lo que indican los MOTIVOS; conserva su enfoque.
+- Entre 80 y 130 palabras, en primera persona, solo con hechos, cifras y vocabulario de esta EXPERIENCIA FUENTE.
 - Pasado si la experiencia terminó; presente solo si sigue vigente.
 {forbidden_line}ORGANIZACIONES DE LA OFERTA (prohibido escribirlas): {", ".join(forbidden_companies) or "ninguna detectada"}
 
-RECHAZADAS:
-{rejected_payload}"""
-        retry_proposals = _experience_proposals(_ask(retry_prompt))
+MOTIVOS: {"; ".join(reviews[index])}
+
+TEXTO RECHAZADO:
+{proposals.get(index, "") or "(el modelo no devolvió texto para esta experiencia)"}
+
+EXPERIENCIA FUENTE:
+{_compact(experiences[index])}"""
+        retry_proposals[index] = str(_ask(retry_prompt).get("descripcion_adaptada", "")).strip()
 
     descriptions = []
     diagnostics = []
@@ -379,7 +425,7 @@ RECHAZADAS:
         if index in rejected:
             attempts = 2
             retry_text = retry_proposals.get(index, "")
-            retry_issues = _experience_issues(retry_text, experience, offer_text, forbidden_companies)
+            retry_issues = issues_of(retry_text, experience)
             if not retry_issues:
                 proposed, issues, origin = retry_text, [], "llm_reintento"
             else:
@@ -435,13 +481,16 @@ def _compact_profile_for_summary(profile):
 
 
 _SUMMARY_INSTRUCTIONS = """resumen_profesional: entre 90 y 120 palabras, en 4 o 5 oraciones. Es una síntesis de quién soy como profesional para esta oferta, NO un resumen de mis experiencias (esas ya aparecen en su propia sección).
-- Oración 1: empieza con "Soy" y la profesión de "profesiones" que mejor corresponda a la oferta, con mis años de experiencia y formación solo si constan en el perfil.
+- Oración 1: empieza con "Soy" y la profesión de "profesiones" que mejor corresponda a la oferta, con mi formación. Si mencionas años, son mi trayectoria total tal como la dice el perfil ("más de N años de trayectoria en..."); nunca los unas a una sola profesión ("Científico de Datos con 15 años").
 - Oraciones 2 y 3: dos o tres fortalezas centrales que respondan a las prioridades de la oferta, expresadas como capacidades respaldadas por mi perfil (qué sé hacer y para qué sirve), no como una lista de proyectos.
-- Menciona como máximo 5 herramientas, elegidas de "software" según lo que prioriza la oferta. No nombres algoritmos ni clases de librerías (por ejemplo, GradientBoostingRegressor).
-- Oración final: mi diferencial real según el perfil (por ejemplo, la combinación de ingeniería, datos y gestión de proyectos), sin exagerar.
+- Menciona como máximo 5 herramientas, elegidas de "software" según lo que prioriza la oferta. Si la oferta pide una tecnología que no está en mi perfil, no la nombres: destaca mi herramienta real más cercana (por ejemplo, Spark para procesamiento de grandes volúmenes), sin presentarla como equivalente. No nombres algoritmos ni clases de librerías.
+- Oración final: mi diferencial real según el perfil, sin exagerar.
 - No repitas proyectos, logros ni cifras de la sección de experiencia; sin porcentajes.
-- Cada idea y cada término relevante aparece una sola vez. Sin enumeraciones de más de tres elementos ni cadenas de "y…, y…, así como". Oraciones de menos de 30 palabras.
-- No uses "Puedo aportar", "Mi capacidad para", "Me desempeño en" ni plantillas genéricas como "Ingeniero con experiencia en..."."""
+- Máximo una "y" por oración: si necesitas más, divide la oración o usa comas. Cada idea aparece una sola vez. Oraciones de menos de 25 palabras, con verbos concretos.
+- Prohibido: "Puedo aportar", "Mi capacidad para", "Me desempeño en", "decisiones estratégicas", "conocimiento profundo", "soluciones escalables", "insights accionables" y plantillas genéricas.
+
+EJEMPLO DE ESTILO (es otra persona y otra profesión: imita solo el tono y la estructura, nunca sus datos):
+"Soy Arquitecta, especialista en vivienda social, con más de diez años de trayectoria en proyectos públicos. Diseño conjuntos habitacionales que equilibran costo, normativa y calidad de vida. Coordino equipos de obra y consultores para cumplir cronogramas exigentes. Trabajo con AutoCAD, Revit y Excel para presupuestar con precisión. Mi diferencial es entender a la vez el diseño, la obra y a las comunidades que la habitan.\""""
 
 
 def analyze_offer_and_profile(offer_text, profile):
@@ -481,19 +530,24 @@ PERFIL:
     if not isinstance(overview.get("requisitos_no_evidenciados"), list):
         overview["requisitos_no_evidenciados"] = []
 
-    generated_summary = str(result.get("resumen_profesional", "")).strip()
-    issues = _summary_validation_issues(generated_summary, profile, offer_text)
-    summary_attempts = [{
-        "llm_respondio": overview_responded,
-        "valido": overview_responded and not issues,
-        "motivos_rechazo": issues if overview_responded else [_LAST_LLM_ERROR or "el modelo no respondió"],
-        "texto_propuesto": generated_summary,
-    }]
-    summary_source = "llm" if summary_attempts[0]["valido"] else ""
+    def review(text, responded):
+        """Problemas de veracidad (rechazan siempre) y de estilo (piden reintento)."""
+        if not responded:
+            return {"llm_respondio": False, "valido": False, "texto_propuesto": "",
+                    "motivos_rechazo": [_LAST_LLM_ERROR or "el modelo no respondió"], "advertencias_estilo": []}
+        hard = _summary_validation_issues(text, profile, offer_text, include_style=False)
+        style = [issue for issue in _summary_validation_issues(text, profile, offer_text) if issue not in hard]
+        return {"llm_respondio": True, "valido": not hard, "texto_propuesto": text,
+                "motivos_rechazo": hard, "advertencias_estilo": style}
 
-    # Reintento solo del resumen (sin reenviar la oferta completa) cuando el modelo
-    # respondió pero el texto no pasó la validación.
-    if overview_responded and not summary_source:
+    first = review(str(result.get("resumen_profesional", "")).strip(), overview_responded)
+    summary_attempts = [first]
+
+    # Reintento solo del resumen cuando hubo cualquier problema: se envía el texto
+    # rechazado para que el modelo lo corrija, sin reenviar la oferta completa.
+    retry = None
+    if overview_responded and (first["motivos_rechazo"] or first["advertencias_estilo"]):
+        issues = first["motivos_rechazo"] + first["advertencias_estilo"]
         rejected_terms = []
         for issue in issues:
             if "términos de oferta sin evidencia" in issue:
@@ -502,11 +556,15 @@ PERFIL:
             "PALABRAS PROHIBIDAS (vienen de la oferta y no están en mi perfil; no las uses ni sus variantes): "
             + ", ".join(rejected_terms) + "\n"
         ) if rejected_terms else ""
-        retry_prompt = f"""TAREA: corrige mi perfil profesional. El intento anterior fue rechazado por: {"; ".join(issues)}.
+        retry_prompt = f"""TAREA: corrige mi perfil profesional. Parte del TEXTO RECHAZADO y corrige solo lo que indican los motivos; conserva lo que está bien.
+MOTIVOS: {"; ".join(issues)}
 {forbidden_line}Usa únicamente lo que está escrito en mi PERFIL. Si la oferta pide algo que no tengo documentado, no lo menciones.
 
 Devuelve JSON con:
 - {_SUMMARY_INSTRUCTIONS}
+
+TEXTO RECHAZADO:
+{first["texto_propuesto"]}
 
 PRIORIDADES DE LA OFERTA:
 {_compact(overview["prioridades"])}
@@ -514,21 +572,16 @@ PRIORIDADES DE LA OFERTA:
 PERFIL:
 {profile_summary}"""
         retry_result = _ask(retry_prompt)
-        retry_summary = str(retry_result.get("resumen_profesional", "")).strip()
-        retry_issues = _summary_validation_issues(retry_summary, profile, offer_text)
-        retry_valid = bool(retry_result) and not retry_issues
-        summary_attempts.append({
-            "llm_respondio": bool(retry_result),
-            "valido": retry_valid,
-            "motivos_rechazo": retry_issues if retry_result else [_LAST_LLM_ERROR or "el modelo no respondió"],
-            "texto_propuesto": retry_summary,
-        })
-        if retry_valid:
-            generated_summary = retry_summary
-            summary_source = "llm_reintento"
-    if not summary_source:
-        generated_summary = ""
-        summary_source = "fallback_local"
+        retry = review(str(retry_result.get("resumen_profesional", "")).strip(), bool(retry_result))
+        summary_attempts.append(retry)
+
+    # Se elige el primer texto sin problemas; si no lo hay, el que solo tenga detalles de
+    # estilo (el reintento primero). Con problemas de veracidad nunca se usa.
+    candidates = [("llm", first)] + ([("llm_reintento", retry)] if retry else [])
+    clean = [(origin, item) for origin, item in candidates if item["valido"] and not item["advertencias_estilo"]]
+    truthful = [(origin, item) for origin, item in reversed(candidates) if item["valido"]]
+    chosen = (clean or truthful or [("fallback_local", {"texto_propuesto": ""})])[0]
+    summary_source, generated_summary = chosen[0], chosen[1]["texto_propuesto"]
 
     detected_role = overview.get("cargo_detectado") or _extract_role_from_offer(offer_text)
     summary_accepted = summary_source.startswith("llm")

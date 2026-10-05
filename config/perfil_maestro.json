@@ -119,10 +119,10 @@
       "herramientas": ["Python", "AWS", "Power BI", "Tableau", "Digsilent", "PSS/E", "CREG", "RETIE", "HSEQ", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "Machine Learning"],
       "logros": [
         "Reducción del 40% en accidentes mediante modelos predictivos de riesgo.",
-        "Dirección de más de 20 proyectos de redes aéreas con cumplimiento del 100% de plazos y presupuestos en el 85% de los casos.",
+        "Dirección de más de 20 proyectos de redes aéreas con cumplimiento de plazos y presupuestos en el 85% de los proyectos.",
         "Implementación de alertas tempranas para seguimiento de armónicos, logrando una reducción del 55% en tiempo de detección de anomalías."
       ],
-      "descripcion": "Lideré equipos multidisciplinarios en la planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos de infraestructura eléctrica y redes MT/BT. Dirigí más de 20 proyectos de redes aéreas bajo estándares CREG y RETIE, cumpliendo el 100% de los plazos y presupuestos en el 85% de los casos. Desarrollé modelos predictivos para identificar patrones de riesgo en obras eléctricas, logrando una reducción del 40% en accidentes. Construí dashboards en Power BI para el monitoreo de indicadores HSEQ, incluyendo tasa de accidentabilidad y cumplimiento RETIE. Implementé un sistema de alertas tempranas para la identificación y seguimiento de armónicos con Python y AWS, reduciendo en un 55% el tiempo de detección de anomalías. Realicé análisis de datos en tiempo real con Tableau para apoyar la atención de fallas críticas, y participé en el modelado de redes eléctricas con Digsilent y PSS/E para evaluar y predecir el comportamiento operativo de los sistemas. Integré ingeniería eléctrica, gestión de proyectos y análisis de datos para apoyar la toma de decisiones técnicas y operativas."
+      "descripcion": "Lideré equipos multidisciplinarios en la planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos de infraestructura eléctrica y redes MT/BT. Dirigí más de 20 proyectos de redes aéreas bajo estándares CREG y RETIE, cumpliendo plazos y presupuestos en el 85% de los proyectos. Desarrollé modelos predictivos para identificar patrones de riesgo en obras eléctricas, logrando una reducción del 40% en accidentes. Construí dashboards en Power BI para el monitoreo de indicadores HSEQ, incluyendo tasa de accidentabilidad y cumplimiento RETIE. Implementé un sistema de alertas tempranas para la identificación y seguimiento de armónicos con Python y AWS, reduciendo en un 55% el tiempo de detección de anomalías. Realicé análisis de datos en tiempo real con Tableau para apoyar la atención de fallas críticas, y participé en el modelado de redes eléctricas con Digsilent y PSS/E para evaluar y predecir el comportamiento operativo de los sistemas. Integré ingeniería eléctrica, gestión de proyectos y análisis de datos para apoyar la toma de decisiones técnicas y operativas."
     }
   ],
   "habilidades": [
@@ -207,10 +207,9 @@
     "Python",
     "SQL / PostgreSQL",
     "Power BI",
-    "PostgreSQL",
     "Pandas / Scikit-learn",
     "Spark",
-    "N&N / WhatsApp Business API",
+    "n8n / WhatsApp Business API",
     "MetaTrader 5",
     "AWS",
     "Tableau",
@@ -281,7 +280,7 @@
   "logros": [
     "Modelo de regresión lineal de consumo energético de buses eléctricos orientado a la certificación ISO 50001 en Green Movil, logrando una reducción del 6% del consumo real vs. proyectado.",
     "Construcción de informes automatizados de consumo energético utilizando grandes volúmenes de datos de telemetría y archivos Parquet, con reducción del 80% en tiempo de generación de reportes.",
-    "Desarrollo de un modelo de análisis de desgaste de flota para apoyar la identificación de patrones y la gestión predictiva del mantenimiento, mejorando la precisión de predicción de fallas en un 28%.",
+    "Desarrollo de un modelo de análisis de desgaste de flota para apoyar la identificación de patrones y la gestión predictiva del mantenimiento.",
     "Pipelines ETL automatizados con Python que unificaron APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL y Power BI, reduciendo el tiempo de integración de datos en un 70%.",
     "Construcción de dashboards interactivos en Power BI para seguimiento de consumo energético, operación de flota e indicadores de desempeño, permitiendo una toma de decisiones 60% más rápida.",
     "Desarrollo de una herramienta en Streamlit para comparar  rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",

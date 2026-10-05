@@ -217,6 +217,41 @@ def test_sidebar_skill_groups_prioritize_offer_matches_then_fill_to_five(monkeyp
     assert result["competencias"][0] == "Análisis predictivo"
 
 
+def test_master_summary_fallback_is_shortened_by_whole_sentences():
+    from src.engine import shorten_by_sentences
+
+    long_text = " ".join(f"Oración número {index} con varias palabras de relleno para el perfil." for index in range(30))
+    short = shorten_by_sentences(long_text, max_words=40)
+
+    assert len(short.split()) <= 40
+    assert short.endswith(".")
+
+
+def test_logros_keep_at_least_four_preferring_offer_and_non_repeated(monkeypatch):
+    import src.engine as engine
+
+    profile = {
+        "aptitudes": [], "software": ["Python"], "nuevas_tecnologias": [], "competencias": [], "habilidades": [],
+        "certificaciones": [],
+        "logros": [
+            "Modelo de churn en Python con 30 % de mejora.",
+            "Dashboard de ventas en Tableau.",
+            "Bot de agendamiento de citas médicas.",
+            "Reducción del 40% en accidentes de obra.",
+            "Curso de oratoria.",
+        ],
+    }
+    experiences = [{"empresa": "X", "cargo": "Y", "descripcion": "Reduje en 40% los accidentes de obra."}]
+    monkeypatch.setattr(engine, "adapt_experiences_and_skills", lambda profile, experiences, *args: llm_result(experiences))
+    adapted = {"experiencia": experiences, "keywords": [], "logros": []}
+
+    result = adapt_content_with_llm(profile, "Buscamos experto en Python para modelos de churn", adapted)
+
+    assert len(result["logros"]) == 4
+    assert result["logros"][0] == "Modelo de churn en Python con 30% de mejora."
+    assert "Reducción del 40% en accidentes de obra." not in result["logros"]  # repite la experiencia
+
+
 def test_adaptation_report_tracks_sources_and_priority_percentages(monkeypatch):
     import src.engine as engine
 

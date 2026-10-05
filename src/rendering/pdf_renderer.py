@@ -628,17 +628,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
             for value in nuevas_tecnologias[:8]:
                 sidebar_flow.append(bullet(value, sidebar_text))
         else:
-            sidebar_section("EDUCACIÓN")
-            for item in training:
-                title = _safe_text(item.get("titulo"), "Formación")
-                institution = _safe_text(item.get("institucion"), "")
-                year = str(item.get("anio", ""))
-                sidebar_flow.append(para(title, sidebar_text))
-                if institution:
-                    sidebar_flow.append(para(institution, sidebar_text))
-                if year:
-                    sidebar_flow.append(para(year, sidebar_text))
-                sidebar_flow.append(Spacer(1, 7))
+            # La formación va en la columna principal (FORMACIÓN ACADÉMICA), que siempre se imprime.
             sidebar_section("CURSOS")
             for value in courses:
                 sidebar_flow.append(bullet(value, sidebar_text))

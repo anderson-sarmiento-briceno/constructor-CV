@@ -59,6 +59,17 @@ def clean_summary_text(text):
     return text.strip()
 
 
+def shorten_by_sentences(text, max_words=110):
+    """Primeras oraciones completas del texto sin pasar de max_words (al menos una)."""
+    sentences = re.split(r"(?<=[.!?])\s+", str(text or "").strip())
+    kept = []
+    for sentence in sentences:
+        if kept and len(" ".join(kept + [sentence]).split()) > max_words:
+            break
+        kept.append(sentence)
+    return " ".join(kept).strip()
+
+
 def select_relevant_logros(profile, offer_text, proposed=None):
     """Selecciona logros por coincidencia con la oferta, no por posición en el JSON."""
     source = profile.get("logros", [])
@@ -148,8 +159,9 @@ def adapt_profile_to_offer(profile, offer_text, analysis=None):
         )
     ]
 
-    # Si el resumen del modelo no pasa la validación, se usa el resumen escrito en el perfil maestro.
-    summary = str(profile.get("perfil_profesional", {}).get("resumen", "") or "").strip()
+    # Si el resumen del modelo no pasa la validación, se usan las primeras oraciones
+    # completas del resumen del perfil maestro (un perfil de CV no debe ser largo).
+    summary = shorten_by_sentences(profile.get("perfil_profesional", {}).get("resumen", ""))
     llm_summary = str((analysis or {}).get("resumen_profesional", "")).strip()
     llm_accepted = (
         len(llm_summary.split()) >= 60
@@ -353,9 +365,32 @@ def adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies=Non
     adapted["nuevas_tecnologias"] = selected_new_technologies
     adapted["competencias"] = selected_competencies
 
-    selected_logros = select_relevant_logros(profile, offer_text)
-    if selected_logros:
-        adapted["logros"] = selected_logros[:5]
+    # Logros destacados (mínimo 4, máximo 5): primero los que tienen relación con la oferta
+    # y no repiten la experiencia mostrada; luego se completa con los demás logros del perfil,
+    # empezando por los que menos repiten lo que ya dice la experiencia.
+    experience_text = " ".join(str(item.get("descripcion", "")) for item in adapted_experience)
+    experience_terms = _significant_terms(experience_text)
+
+    def overlap(logro):
+        numbers = re.findall(r"\d+(?:[.,]\d+)?%", logro)
+        if numbers and all(number in experience_text for number in numbers):
+            return 1.0
+        terms = _significant_terms(logro)
+        return len(terms & experience_terms) / len(terms) if terms else 1.0
+
+    all_logros = [re.sub(r"(\d)\s+%", r"\1%", str(logro)).strip() for logro in profile.get("logros", [])]
+    fresh_logros = [logro for logro in all_logros if overlap(logro) < 0.6]
+    offer_words = {word.casefold() for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", offer_text or "")}
+    selected_logros = [
+        logro for logro in select_relevant_logros({"logros": fresh_logros}, offer_text)
+        if any(word.casefold() in offer_words for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", logro))
+    ][:5]
+    for logro in sorted(all_logros, key=overlap):
+        if len(selected_logros) >= 4:
+            break
+        if logro not in selected_logros:
+            selected_logros.append(logro)
+    adapted["logros"] = selected_logros
     adapted["experiencia"] = adapted_experience
     proposed_skills = {
         str(item).strip().casefold()

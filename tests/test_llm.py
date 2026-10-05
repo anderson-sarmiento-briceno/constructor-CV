@@ -35,10 +35,10 @@ PROFILE = {
 OFFER = "Buscamos Científico de Datos con Python, SQL y Databricks para el sector bancario."
 VALID_SUMMARY = (
     "Soy Ingeniero Eléctrico y Científico de Datos con experiencia en análisis de datos. "
-    "He desarrollado modelos predictivos con Python y he construido procesos ETL para consolidar "
-    "telemetría y consumo energético en tableros de Power BI. Mi experiencia combina ingeniería "
-    "eléctrica, análisis de información y automatización de reportes, con foco en la calidad de los "
-    "datos, la documentación técnica y la mejora continua de procesos operativos en equipos de trabajo."
+    "He desarrollado modelos predictivos con Python para anticipar el desgaste de una flota eléctrica. "
+    "También he construido procesos ETL que consolidan telemetría en tableros de Power BI. "
+    "Mi experiencia combina ingeniería eléctrica, análisis de información y automatización de reportes. "
+    "Trabajo con foco en la calidad de los datos, la documentación técnica y la mejora continua de procesos operativos."
 )
 
 
@@ -182,7 +182,7 @@ def test_invented_experience_falls_back_to_original_text(fake_chat):
     experience = PROFILE["experiencia"][0]
     fake_chat["responses"] = [
         {"experiencias": [{"indice": 0, "descripcion_adaptada": INVENTED_EXPERIENCE}], "herramientas": ["Python"]},
-        {"experiencias": [{"indice": 0, "descripcion_adaptada": INVENTED_EXPERIENCE}]},
+        {"descripcion_adaptada": INVENTED_EXPERIENCE},
     ]
 
     result = llm.adapt_experiences_and_skills(PROFILE, [experience], OFFER, ["Banco Ejemplo"])
@@ -199,7 +199,7 @@ def test_rejected_experience_retry_sends_forbidden_words_without_offer(fake_chat
     experience = PROFILE["experiencia"][0]
     fake_chat["responses"] = [
         {"experiencias": [{"indice": 0, "descripcion_adaptada": INVENTED_EXPERIENCE}]},
-        {"experiencias": [{"indice": 0, "descripcion_adaptada": FIXED_EXPERIENCE}]},
+        {"descripcion_adaptada": FIXED_EXPERIENCE},
     ]
 
     result = llm.adapt_experiences_and_skills(PROFILE, [experience], OFFER)
@@ -223,8 +223,51 @@ def test_summary_with_percentages_is_rejected():
 
 
 def test_model_text_is_normalized_for_pdf(fake_chat):
-    fake_chat["responses"] = [{"resumen_profesional": "Uso Scikit‑learn y Python."}]
-    assert llm._ask("tarea") == {"resumen_profesional": "Uso Scikit-learn y Python."}
+    fake_chat["responses"] = [{"resumen_profesional": "Uso Scikit‑learn y Python; subió un 35 %."}]
+    assert llm._ask("tarea") == {"resumen_profesional": "Uso Scikit-learn y Python; subió un 35%."}
+
+
+def test_summary_with_more_than_one_y_per_sentence_is_rejected():
+    bad = VALID_SUMMARY + " Construyo y valido modelos predictivos y de regresión en energía y movilidad."
+    issues = llm._summary_validation_issues(bad, PROFILE, OFFER)
+    assert any('más de una "y"' in issue for issue in issues)
+
+
+def test_summary_rejects_single_unevidenced_offer_term_and_cliches():
+    bad = VALID_SUMMARY + " Uso Databricks para tomar decisiones estratégicas."
+    issues = llm._summary_validation_issues(bad, PROFILE, OFFER)
+    assert any("databricks" in issue for issue in issues)
+    assert any("muletillas" in issue for issue in issues)
+
+
+def test_offer_terms_used_anywhere_in_profile_are_allowed_in_experiences():
+    experience = PROFILE["experiencia"][0]
+    profile = {**PROFILE, "competencias": ["Procesamiento mediante Spark"]}
+    offer = "Generar valor mediante analítica con Databricks."
+    text = FIXED_EXPERIENCE + " Integré los datos mediante procesos automáticos."
+
+    assert not any("términos" in issue for issue in llm._experience_issues(text, experience, offer, [], profile))
+    issues = llm._experience_issues(text + " Usé Databricks.", experience, offer, [], profile)
+    assert any("databricks" in issue for issue in issues)
+
+
+def test_overclaims_are_rejected_unless_source_says_so():
+    source = {"descripcion": "Generé el insumo técnico para la certificación ISO 50001."}
+    assert llm._overclaim_issues("Mis modelos permitieron la certificación ISO 50001.", source)
+    assert llm._overclaim_issues("Lideré la automatización de informes.", source)
+    assert not llm._overclaim_issues("Lideré equipos.", {"descripcion": "Lideré equipos de obra."})
+
+
+def test_summary_with_only_style_issues_is_kept_after_retry(fake_chat):
+    styled = VALID_SUMMARY + " Construyo modelos y tableros con Python y Power BI."
+    fake_chat["responses"] = [{"resumen_profesional": styled}, {"resumen_profesional": styled}]
+
+    analysis = llm.analyze_offer_and_profile(OFFER, PROFILE)
+
+    assert analysis["resumen_origen"] == "llm_reintento"
+    assert analysis["resumen_profesional"] == styled
+    assert "TEXTO RECHAZADO" in fake_chat["prompts"][1]
+    assert analysis["resumen_intentos"][1]["advertencias_estilo"]
 
 
 def test_accepted_experiences_make_no_retry(fake_chat):
