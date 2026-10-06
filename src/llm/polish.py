@@ -1,0 +1,264 @@
+"""Redacción final con Gemini: perfil profesional y experiencias.
+
+Se ejecuta al final, cuando Groq ya hizo todo el proceso. Hay dos llamadas, cada una con
+su propio prompt: una redacta el perfil profesional y otra reescribe las experiencias.
+El texto de Gemini reemplaza al de Groq; si Gemini no responde con ninguna clave ni con
+ningún modelo, se conservan los textos de Groq y se devuelve un aviso.
+
+Las claves se leen de APY_KEY_GEMINI y APY_KEY_GEMINI_2 en .env (la segunda se usa si la
+primera se queda sin cupo) y solo viajan en una cabecera: nunca se imprimen. Solo se envían
+los textos, los hechos profesionales necesarios y las prioridades de la oferta; nunca
+nombre, contacto ni foto.
+"""
+import json
+import os
+import time
+from urllib import error, request
+
+from dotenv import load_dotenv
+
+from src.llm.llm import _compact, _compact_profile_for_summary, offer_terms_missing_from_profile
+
+load_dotenv()
+
+GEMINI_URL = "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+GEMINI_KEY_VARIABLES = ("APY_KEY_GEMINI", "APY_KEY_GEMINI_2")
+# Modelo principal y de respaldo: el principal se prueba con cada clave y, solo si ninguna
+# funciona, se pasa al de respaldo (también con cada clave).
+DEFAULT_GEMINI_MODEL = "gemini-3.6-flash"
+DEFAULT_GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite"
+
+_SHARED_RULES = """PRESERVACIÓN RIGUROSA:
+- No agregues nada que no esté en el material recibido: ni herramientas, ni sectores, ni responsabilidades, ni logros, ni cifras, ni el tamaño o tipo de un equipo, ni el propósito o el beneficio de una acción si el original no lo dice (por ejemplo, no añadas "para la continuidad del servicio" o "seguridad institucional").
+- No exageres: no conviertas "aporté a" o "insumo para" en "logré" o "permití", ni "construí" en "lideré". No cambies el significado de una métrica.
+- No agregues adjetivos inflados ("avanzado", "sofisticado", "robusto", "estratégico", "riguroso", "integral", "de alta precisión", "de alto impacto", "estrictos") ni muletillas ("garantizando", "apalancado", "articulando", "soluciones escalables", "decisiones estratégicas", "mi capacidad para", "mi ventaja competitiva").
+- PALABRAS PROHIBIDAS: nunca uses las palabras de la lista que se te entrega (aparecen en la oferta pero no en mi perfil), ni sus variantes. Las prioridades de la oferta solo indican qué destacar primero.
+- Ortografía impecable, incluidos los pretéritos ("optimicé", "automaticé", "organicé"). No uses punto y coma para encadenar ideas.
+
+Responde solo con el JSON pedido."""
+
+_PROFILE_SYSTEM = f"""Actúa como un consultor experto en redacción ejecutiva de hojas de vida en español. Redactas el PERFIL PROFESIONAL de un CV: el párrafo que un reclutador lee primero.
+
+CÓMO DEBE SER EL PERFIL:
+- Entre 80 y 110 palabras, en 4 o 5 oraciones de menos de 25 palabras, en primera persona y en presente.
+- Oración 1: "Soy" + mis profesiones (si la oferta corresponde a una de ellas, nómbrala junto a la de mayor trayectoria, por ejemplo "Soy [profesión de mayor trayectoria] y [profesión de la oferta]") + mi formación (especialización y estudios que aparezcan en el material). Es obligatorio incluir la formación.
+- Si hay años de experiencia en el material, son mi trayectoria TOTAL y se describen como en el material, combinando las áreas que allí aparecen (por ejemplo, "más de N años de trayectoria integrando [área 1] y [área 2]"). Nunca los atribuyas a una sola área o profesión ("15 años en analítica" está mal si el material dice que se combinaron varias áreas).
+- Oraciones 2 y 3: dos o tres fortalezas reales que respondan a las prioridades de la oferta, contadas como capacidades (qué hago y para qué sirve), no como lista de proyectos.
+- Como máximo 5 herramientas, solo de las que aparecen en el material, elegidas según la oferta. Sin nombres de clases de librerías.
+- Oración final: el diferencial real que muestra el material, sin exagerar.
+- Sin porcentajes ni cifras de resultados (van en la sección de experiencia). Sin repetir proyectos concretos de las experiencias.
+- No encadenes más de dos "y" en una oración, no dejes listas unidas solo con comas y no repitas palabras.
+- Si el material marca requisitos de la oferta como no evidenciados, no los menciones ni los insinúes.
+
+EJEMPLO DE ESTILO (otra persona y otra profesión: imita solo el tono y la estructura, nunca sus datos):
+"Soy Arquitecta, especialista en vivienda social, con más de diez años de trayectoria en proyectos públicos. Diseño conjuntos habitacionales que equilibran costo, normativa y calidad de vida. Coordino equipos de obra y consultores para cumplir cronogramas exigentes. Trabajo con AutoCAD, Revit y Excel para presupuestar con precisión. Mi diferencial es entender a la vez el diseño, la obra y a las comunidades que la habitan."
+
+{_SHARED_RULES}"""
+
+_EXPERIENCE_SYSTEM = f"""Actúa como un consultor experto en redacción ejecutiva de hojas de vida en español. Tu objetivo es REEVALUAR Y REESCRIBIR PROFUNDAMENTE descripciones de experiencia que ya están escritas, elevando el tono ejecutivo para que suenen sobrias, fluidas y de alto impacto, SIN cambiar ni agregar hechos.
+
+REESTRUCTURA:
+- Reformulación sintáctica real: no te limites a unir oraciones. Cambia la estructura de las frases, varía los verbos de acción ("Lideré", "Impulsé", "Estructuré", "Desplegué", "Automaticé") y ordena las ideas de lo más relevante para la oferta a lo complementario.
+- Abre la descripción con un verbo de acción directo en primera persona. Dentro del párrafo, enlaza las ideas con conectores como "Además", "Paralelamente" o "Asimismo".
+- Cada oración tiene entre 15 y 30 palabras: combina en una misma oración las ideas relacionadas y nunca escribas frases sueltas de menos de 10 palabras ("Automaticé el procesamiento." está mal).
+- La acción y su resultado van SIEMPRE en la misma oración, tal como en el original (por ejemplo, "Desarrollé modelos de riesgo que redujeron un 40% los accidentes", nunca "Desarrollé modelos de riesgo. Logré reducir un 40% los accidentes.").
+- Usa conectores de causa-efecto SOLO cuando el original ya establece esa relación. Nunca inventes que una acción causó un resultado.
+- Primera persona del singular y tiempo pasado.
+- Conserva sin alteración todas las tecnologías, herramientas, normas y estándares, y todas las cifras y métricas, cada una unida al mismo resultado y a la misma acción que en el original. No elimines ninguna.
+- Cada descripción es UN SOLO PÁRRAFO continuo, sin listas ni títulos, de entre 80 y 130 palabras. No escribas el nombre de la empresa, el cargo ni las fechas: ya aparecen en el encabezado.
+
+EJEMPLO DE TRANSFORMACIÓN (fíjate en que no se agrega ningún hecho):
+- ENTRADA: "Hice proyectos de software con Python y Django. Reduje errores en 20%. Usé PostgreSQL para las bases de datos y lideré 5 personas."
+- SALIDA: "Lideré a un equipo de 5 personas en proyectos de software con Python y Django, sobre bases de datos PostgreSQL. Reduje los errores en un 20%."
+
+{_SHARED_RULES}"""
+
+
+class GeminiUnavailable(RuntimeError):
+    """Gemini no se pudo usar. El mensaje nunca incluye la clave."""
+
+
+def gemini_model():
+    """Modelo principal: GEMINI_MODEL en .env o el valor por defecto de este módulo."""
+    return os.getenv("GEMINI_MODEL", "").strip() or DEFAULT_GEMINI_MODEL
+
+
+def gemini_models():
+    """Modelos a probar en orden: el principal y el de respaldo (GEMINI_FALLBACK_MODEL)."""
+    fallback = os.getenv("GEMINI_FALLBACK_MODEL", DEFAULT_GEMINI_FALLBACK_MODEL).strip()
+    return [gemini_model()] + ([fallback] if fallback and fallback != gemini_model() else [])
+
+
+def _gemini_keys():
+    """(etiqueta, clave) de cada clave configurada, en orden; la etiqueta nunca es la clave."""
+    return [
+        (f"clave {index}", os.getenv(name, "").strip())
+        for index, name in enumerate(GEMINI_KEY_VARIABLES, start=1)
+        if os.getenv(name, "").strip()
+    ]
+
+
+def gemini_enabled():
+    """Activo si hay al menos una clave y GEMINI_POLISH no es "0"."""
+    return bool(_gemini_keys()) and os.getenv("GEMINI_POLISH", "1").strip() != "0"
+
+
+def _error_message(exc):
+    try:
+        return str(json.loads(exc.read().decode("utf-8")).get("error", {}).get("message", ""))[:200]
+    except (ValueError, AttributeError, OSError):
+        return ""
+
+
+def _call_gemini(system, user, model, key, retries=3):
+    """Una llamada a Gemini en modo JSON. Reintenta solo si el modelo está saturado (503).
+
+    Temperatura 0.7 y top_p 0.9 para que reformule de verdad la sintaxis.
+    """
+    body = json.dumps({
+        "systemInstruction": {"parts": [{"text": system}]},
+        "contents": [{"role": "user", "parts": [{"text": user}]}],
+        "generationConfig": {"temperature": 0.7, "topP": 0.9, "responseMimeType": "application/json"},
+    }).encode("utf-8")
+    headers = {"x-goog-api-key": key, "Content-Type": "application/json", "User-Agent": "cv-dinamico/1.0"}
+    timeout = float(os.getenv("GEMINI_TIMEOUT", "").strip() or 90)
+    url = GEMINI_URL.format(model=model)
+    for attempt in range(retries + 1):
+        req = request.Request(url, data=body, headers=headers, method="POST")
+        try:
+            with request.urlopen(req, timeout=timeout) as response:
+                data = json.loads(response.read().decode("utf-8"))
+            parts = data["candidates"][0]["content"]["parts"]
+            return json.loads("".join(part.get("text", "") for part in parts if not part.get("thought")))
+        except error.HTTPError as exc:
+            message = _error_message(exc)
+            if exc.code == 503 and attempt < retries:
+                time.sleep(5 * 2 ** attempt)  # 5, 10 y 20 s: a veces responde tras ~18 s
+                continue
+            if exc.code == 429:
+                raise GeminiUnavailable(f"sin cupo (HTTP 429): {message}") from None
+            raise GeminiUnavailable(f"HTTP {exc.code}: {message}") from None
+        except error.URLError as exc:
+            raise GeminiUnavailable(f"sin conexión ({exc.reason})") from None
+        except TimeoutError:
+            raise GeminiUnavailable(f"no respondió en {timeout:.0f} s") from None
+        except (KeyError, IndexError, TypeError, ValueError) as exc:
+            raise GeminiUnavailable(f"respuesta no válida ({type(exc).__name__})") from None
+    raise GeminiUnavailable("sigue saturado tras los reintentos")
+
+
+def _ask_gemini(system, user):
+    """Prueba el modelo principal con cada clave y luego el de respaldo con cada clave.
+
+    Devuelve (resultado, "modelo con clave N", fallos previos) o lanza GeminiUnavailable
+    con todos los motivos.
+    """
+    failures = []
+    for model in gemini_models():
+        for label, key in _gemini_keys():
+            try:
+                return _call_gemini(system, user, model, key), f"{model} con {label}", failures
+            except GeminiUnavailable as exc:
+                failures.append(f"{model} con {label}: {exc}")
+    raise GeminiUnavailable(" | ".join(failures) or "no hay claves de Gemini configuradas")
+
+
+def _forbidden_line(forbidden):
+    return "PALABRAS PROHIBIDAS (están en la oferta pero no en mi perfil): " + (", ".join(forbidden) or "ninguna")
+
+
+def _polish_profile(summary, priorities, profile, unevidenced, forbidden):
+    material = {
+        "perfil_actual": summary,
+        "hechos_del_perfil": _compact_profile_for_summary(profile),
+        "software": profile.get("software", []),
+        "requisitos_no_evidenciados": unevidenced or [],
+    }
+    prompt = f"""TAREA: redacta mi perfil profesional para esta oferta, usando solo el MATERIAL.
+
+Devuelve JSON con esta forma:
+{{"resumen":"..."}}
+
+PRIORIDADES DE LA OFERTA (solo para decidir qué destacar): {"; ".join(str(item) for item in priorities) or "ninguna"}
+{_forbidden_line(forbidden)}
+
+MATERIAL:
+{_compact(material)}"""
+    result, used, failures = _ask_gemini(_PROFILE_SYSTEM, prompt)
+    return str(result.get("resumen", "")).strip() if isinstance(result, dict) else "", used, failures
+
+
+def _polish_experiences(experiences, descriptions, priorities, forbidden):
+    blocks = [{"indice": index, "cargo": item.get("cargo", ""), "fechas": item.get("fechas", ""),
+               "descripcion": text} for index, (item, text) in enumerate(zip(experiences, descriptions))]
+    prompt = f"""TAREA: reescribe en profundidad cada descripción de experiencia, sin cambiar sus hechos.
+
+Devuelve JSON con esta forma:
+{{"experiencias":[{{"indice":0,"descripcion":"..."}}]}}
+
+PRIORIDADES DE LA OFERTA (solo para decidir qué destacar primero): {"; ".join(str(item) for item in priorities) or "ninguna"}
+{_forbidden_line(forbidden)}
+
+EXPERIENCIAS (originales):
+{json.dumps(blocks, ensure_ascii=False)}"""
+    result, used, failures = _ask_gemini(_EXPERIENCE_SYSTEM, prompt)
+    proposals = {}
+    items = result.get("experiencias") if isinstance(result, dict) else None
+    for item in items if isinstance(items, list) else []:
+        if isinstance(item, dict) and isinstance(item.get("indice"), int):
+            proposals[item["indice"]] = str(item.get("descripcion", "")).strip()
+    return proposals, used, failures
+
+
+def polish_with_gemini(summary, experiences, priorities, profile, offer_text=None, unevidenced=None):
+    """Redacta con Gemini el perfil profesional (un prompt) y las experiencias (otro prompt).
+
+    Devuelve (resumen, descripciones, reporte). El texto de Gemini reemplaza al de Groq;
+    solo se conserva el de Groq si Gemini no responde o devuelve un bloque vacío.
+    """
+    descriptions = [str(item.get("descripcion", "")).strip() for item in experiences]
+    # avisos: solo cuando un bloque se queda sin Gemini. intentos_fallidos: combinaciones de
+    # modelo y clave que fallaron antes de que otra respondiera (informativo).
+    report = {"estado": "", "perfil": "", "experiencias": "", "avisos": [], "intentos_fallidos": [], "bloques": []}
+    if not gemini_enabled():
+        report["estado"] = "desactivado"
+        return summary, descriptions, report
+
+    # Palabras de la oferta que no aparecen en ninguna parte del perfil (calculadas localmente).
+    forbidden = offer_terms_missing_from_profile(offer_text, profile) if offer_text else []
+    report["palabras_prohibidas"] = forbidden
+
+    final_summary = summary
+    try:
+        polished, used, failures = _polish_profile(summary, priorities, profile, unevidenced, forbidden)
+        report["perfil"] = used
+        report["intentos_fallidos"] += failures
+        if polished:
+            final_summary = polished
+        report["bloques"].append({"bloque": "perfil", "resultado": "redactado por Gemini" if polished else "Gemini lo devolvió vacío; se conserva el de Groq"})
+    except GeminiUnavailable as exc:
+        report["avisos"].append(f"Perfil: Gemini no disponible ({exc}); se conserva el texto de Groq.")
+        report["bloques"].append({"bloque": "perfil", "resultado": "sin Gemini; se conserva el de Groq"})
+
+    final_descriptions = list(descriptions)
+    try:
+        proposals, used, failures = _polish_experiences(experiences, descriptions, priorities, forbidden)
+        report["experiencias"] = used
+        report["intentos_fallidos"] += failures
+        for index, item in enumerate(experiences):
+            polished = proposals.get(index, "")
+            if polished:
+                final_descriptions[index] = polished
+            report["bloques"].append({
+                "bloque": item.get("empresa", f"experiencia {index}"),
+                "resultado": "redactado por Gemini" if polished else "Gemini lo devolvió vacío; se conserva el de Groq",
+            })
+    except GeminiUnavailable as exc:
+        report["avisos"].append(f"Experiencias: Gemini no disponible ({exc}); se conservan los textos de Groq.")
+        for index, item in enumerate(experiences):
+            report["bloques"].append({"bloque": item.get("empresa", f"experiencia {index}"),
+                                      "resultado": "sin Gemini; se conserva el de Groq"})
+
+    used_any = bool(report["perfil"] or report["experiencias"])
+    report["estado"] = "aplicado" if used_any else "no_disponible"
+    return final_summary, final_descriptions, report

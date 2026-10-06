@@ -16,6 +16,7 @@ from src.llm.llm import (
     _significant_terms,
     _stems_of,
 )
+from src.llm.polish import polish_with_gemini
 from src.matching.matcher import classify_requirements
 from src.rendering.pdf_renderer import build_cv_html, render_cv_to_pdf_model
 from src.validation.validation import validate_claims_against_profile
@@ -513,6 +514,25 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
     adapted["analysis_priorities"] = analysis.get("palabras_clave", [])
     forbidden_companies = extract_offer_organizations(offer_text, offer_name)
     adapted = adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies)
+    # Redacción final con Gemini: un prompt para el perfil y otro para las experiencias.
+    unevidenced = analysis.get("requisitos_no_evidenciados", []) if analysis.get("analisis_oferta_llm_respondio") else []
+    summary, descriptions, polish_report = polish_with_gemini(
+        adapted["summary"], adapted["experiencia"], adapted["analysis_priorities"], profile, offer_text, unevidenced
+    )
+    adapted["summary"] = clean_summary_text(summary)
+    adapted["experiencia"] = [
+        {**experience, "descripcion": description}
+        for experience, description in zip(adapted["experiencia"], descriptions)
+    ]
+    adapted.setdefault("reporte_adaptacion", {})["pulido_gemini"] = polish_report
+    if polish_report.get("perfil") or polish_report.get("experiencias"):
+        print(
+            f"Gemini: perfil con {polish_report.get('perfil') or 'ninguno'}; "
+            f"experiencias con {polish_report.get('experiencias') or 'ninguno'}",
+            file=sys.stderr,
+        )
+    for notice in polish_report.get("avisos", []):
+        print(f"AVISO Gemini: {notice}", file=sys.stderr)
     analysis["bloques_adaptados"] = adapted.get("bloques_llm", 0)
     analysis["reporte_adaptacion"] = adapted.get("reporte_adaptacion", {})
 

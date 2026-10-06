@@ -98,6 +98,18 @@ Copia `.env.example` como `.env` y escribe tu clave en `APY_KEY`. Variables opci
 | `GROQ_MODEL` | Modelo de Groq. Si no se define, se usa el valor por defecto de `src/llm/client.py`. |
 | `GROQ_TIMEOUT` | Segundos de espera por respuesta (por defecto 60). |
 | `GROQ_REASONING_EFFORT` | Esfuerzo de razonamiento (`low`, `medium` o `high`; por defecto el de `src/llm/client.py`). Vacía si el modelo no razona. |
+| `APY_KEY_GEMINI` | Clave de Google AI Studio para la redacción final (opcional). |
+| `APY_KEY_GEMINI_2` | Segunda clave, que se usa si la primera se queda sin cupo (opcional). |
+| `GEMINI_MODEL` | Modelo de Gemini. Si no se define, se usa el valor por defecto de `src/llm/polish.py`. |
+| `GEMINI_FALLBACK_MODEL` | Modelo que se prueba si el principal está saturado o sin cupo (vacía = ninguno). |
+| `GEMINI_POLISH` | `0` desactiva el pulido aunque haya clave. |
+
+**Redacción final con Gemini:** al terminar el proceso con Groq, Gemini redacta el perfil
+profesional (con un prompt propio) y reescribe las experiencias (con otro), con instrucciones
+estrictas de no agregar ni cambiar hechos. Su texto reemplaza al de Groq. Se prueba cada clave
+con el modelo principal y el de respaldo; si ninguna combinación responde, la consola muestra un
+`AVISO Gemini` y el CV se genera con los textos de Groq. Conviene revisar el PDF antes de
+enviarlo, porque el texto de Gemini no pasa por los validadores locales.
 
 Cada oferta usa dos llamadas al modelo (análisis + resumen, y experiencias + habilidades)
 y una tercera solo si el resumen no pasa la validación. Ante un límite de uso (HTTP 429)
@@ -126,6 +138,11 @@ pytest -q
 ```
 
 ## Privacidad y diseño
+
+Si el pulido con Gemini está activo, el perfil profesional, las descripciones de experiencia
+(con su cargo y fechas) y las prioridades de la oferta se envían también a Google. En el plan
+gratuito de la API de Gemini, Google puede usar ese contenido para mejorar sus productos y
+revisores humanos pueden leerlo; en el plan de pago no.
 
 La inferencia se ejecuta en los servidores de Groq. El motor envía el texto de la oferta,
 las experiencias, las habilidades y la formación del perfil maestro. De los datos personales

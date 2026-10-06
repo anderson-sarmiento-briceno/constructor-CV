@@ -62,15 +62,40 @@ def _stem(word, size=6):
     return flat[:size]
 
 
-def _stems_of(text):
-    return {_stem(word) for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}", text or "")}
+def _stems_of(text, size=6):
+    return {_stem(word, size) for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{3,}", text or "")}
+
+
+# Raíz corta para comparar con la oferta: une un verbo con su sustantivo
+# ("ejecuté" ~ "ejecución" ~ "ejecutar") y el singular con el plural.
+_ECHO_STEM = 5
+
+
+def _offer_echoes(generated_text, offer_text):
+    """Palabras del texto generado que vienen de la oferta, comparando por raíz
+    (así "exploratorios" cuenta igual que "exploratorio")."""
+    offer_stems = {_stem(term, _ECHO_STEM) for term in _significant_terms(offer_text) if len(term) >= 4}
+    return {term for term in _significant_terms(generated_text) if _stem(term, _ECHO_STEM) in offer_stems}
 
 
 def _unevidenced_offer_terms(generated_text, offer_text, source_fact):
-    """Términos que están en la oferta y en el texto generado, pero sin raíz en la fuente real."""
-    source_stems = _stems_of(json.dumps(source_fact, ensure_ascii=False))
-    candidate_terms = _significant_terms(offer_text) & _significant_terms(generated_text)
-    return {term for term in candidate_terms if _stem(term) not in source_stems}
+    """Términos que vienen de la oferta y están en el texto generado, pero sin raíz en la fuente real."""
+    source_stems = _stems_of(json.dumps(source_fact, ensure_ascii=False), _ECHO_STEM)
+    return {
+        term for term in _offer_echoes(generated_text, offer_text)
+        if _stem(term, _ECHO_STEM) not in source_stems
+    }
+
+
+def offer_terms_missing_from_profile(offer_text, profile, limit=60):
+    """Términos de la oferta que no aparecen (ni por raíz) en ninguna parte del perfil:
+    son las palabras que un redactor no debe usar para no atribuir algo que no se tiene."""
+    profile_stems = _stems_of(json.dumps(profile, ensure_ascii=False), _ECHO_STEM)
+    missing = sorted({
+        term for term in _significant_terms(offer_text)
+        if len(term) >= 4 and _stem(term, _ECHO_STEM) not in profile_stems
+    })
+    return missing[:limit]
 
 
 _SUMMARY_CLICHES = (
@@ -167,17 +192,15 @@ def _summary_validation_issues(summary, profile, offer_text, include_style=True,
             if len(re.findall(r"\b[ye]\b", sentence.casefold())) > 2:
                 issues.append(f'oración con tres o más "y" (divídela en dos oraciones): «{sentence.strip()}»')
 
-    offer_terms = {term for term in _significant_terms(offer_text) if len(term) >= 4}
-    summary_terms = _significant_terms(summary)
-    profile_stems = _stems_of(profile_text)
+    profile_stems = _stems_of(profile_text, _ECHO_STEM)
     invented = [
-        term for term in (offer_terms & summary_terms)
-        if _stem(term) not in profile_stems
+        term for term in _offer_echoes(summary, offer_text)
+        if _stem(term, _ECHO_STEM) not in profile_stems
     ]
     if requirements:
-        requirement_stems = _stems_of(" ".join(str(item) for item in requirements))
-        claimed = sorted(term for term in invented if _stem(term) in requirement_stems)
-        wording = sorted(term for term in invented if _stem(term) not in requirement_stems)
+        requirement_stems = _stems_of(" ".join(str(item) for item in requirements), _ECHO_STEM)
+        claimed = sorted(term for term in invented if _stem(term, _ECHO_STEM) in requirement_stems)
+        wording = sorted(term for term in invented if _stem(term, _ECHO_STEM) not in requirement_stems)
     else:
         claimed, wording = sorted(invented), []
     if claimed:

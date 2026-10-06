@@ -304,7 +304,7 @@ def test_offer_terms_used_anywhere_in_profile_are_allowed_in_experiences():
 def test_offer_wording_is_style_but_offer_requirements_are_rejected():
     offer = "Comunicar hallazgos a líderes. Requisito: Databricks."
     requirements = ["Databricks", "Comunicación de resultados"]
-    text = VALID_SUMMARY + " Comunico hallazgos con claridad."
+    text = VALID_SUMMARY + " Presento hallazgos con claridad."
 
     hard = llm._summary_validation_issues(text, PROFILE, offer, include_style=False, requirements=requirements)
     style = llm._summary_validation_issues(text, PROFILE, offer, requirements=requirements)
@@ -316,6 +316,13 @@ def test_offer_wording_is_style_but_offer_requirements_are_rejected():
     assert any("databricks" in issue for issue in claimed)
     # Sin lista de requisitos (análisis fallido) todo término sin respaldo rechaza.
     assert llm._summary_validation_issues(text, PROFILE, offer, include_style=False)
+
+
+def test_verb_and_noun_of_same_word_count_as_evidence():
+    offer = "Ejecutar proyectos y análisis exploratorio de datos."
+    source = {"descripcion": "Lideré la ejecución de proyectos de redes."}
+    assert llm._unevidenced_offer_terms("Ejecuté proyectos de redes.", offer, source) == set()
+    assert "exploratorios" in llm._unevidenced_offer_terms("Hice análisis exploratorios.", offer, source)
 
 
 def test_overclaims_are_rejected_unless_source_says_so():
