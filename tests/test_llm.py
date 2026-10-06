@@ -115,6 +115,20 @@ def test_client_retries_429_and_5xx_using_retry_after(fake_urlopen):
     assert fake_urlopen["sleeps"] == [3.0, 2.0]
 
 
+def test_client_429_waits_what_the_message_says_when_header_is_missing(fake_urlopen):
+    message = "Rate limit reached ... Please try again in 12.582857142s. Need more tokens?"
+    fake_urlopen["responses"] = [_http_error(429, message=message), _ok('{"d": 4}')]
+
+    assert client.chat("reglas", "tarea") == {"d": 4}
+    assert 13 <= fake_urlopen["sleeps"][0] <= 14  # 12,6 s del mensaje + 1 s de margen
+
+
+def test_wait_from_message_understands_minutes_and_milliseconds():
+    assert client._wait_from_message("try again in 1m2.5s") == 62.5
+    assert client._wait_from_message("try again in 450ms") == 0.45
+    assert client._wait_from_message("sin indicación") is None
+
+
 def test_client_retries_when_model_fails_to_generate_json(fake_urlopen):
     fake_urlopen["responses"] = [
         _http_error(400, message="Failed to generate JSON. Please adjust your prompt."),
@@ -250,10 +264,23 @@ def test_model_text_is_normalized_for_pdf(fake_chat):
     assert llm._ask("tarea") == {"resumen_profesional": "Uso Scikit-learn y Python; subió un 35%."}
 
 
-def test_summary_with_more_than_one_y_per_sentence_is_rejected():
+def test_summary_sentence_with_three_y_is_flagged_but_two_is_fine():
     bad = VALID_SUMMARY + " Construyo y valido modelos predictivos y de regresión en energía y movilidad."
-    issues = llm._summary_validation_issues(bad, PROFILE, OFFER)
-    assert any('más de una "y"' in issue for issue in issues)
+    assert any('tres o más "y"' in issue for issue in llm._summary_validation_issues(bad, PROFILE, OFFER))
+    fine = VALID_SUMMARY + " Diseño y entreno modelos con Python y Spark."
+    assert not any('"y"' in issue for issue in llm._summary_validation_issues(fine, PROFILE, OFFER))
+
+
+def test_metric_moved_to_another_action_is_rejected():
+    experience = {
+        "descripcion": "Construí informes automatizados con telemetría, mejorando en un 28% la precisión de "
+                       "las proyecciones de consumo. Implementé pipelines ETL hacia PostgreSQL y dashboards "
+                       "operativos en Power BI.",
+    }
+    moved = "Construí dashboards operativos en Power BI que mejoraron la precisión de las proyecciones en 28%."
+    kept = "Automaticé informes con telemetría, mejorando en un 28% la precisión de las proyecciones de consumo."
+    assert llm._misplaced_metric_issues(moved, experience)
+    assert not llm._misplaced_metric_issues(kept, experience)
 
 
 def test_summary_rejects_single_unevidenced_offer_term_and_cliches():
@@ -299,7 +326,7 @@ def test_overclaims_are_rejected_unless_source_says_so():
 
 
 def test_summary_with_only_style_issues_is_kept_after_retry(fake_chat):
-    styled = VALID_SUMMARY + " Construyo modelos y tableros con Python y Power BI."
+    styled = VALID_SUMMARY + " Construyo modelos y tableros con Python y Power BI y Excel."
     fake_chat["responses"] = [{"resumen_profesional": styled}, {"resumen_profesional": styled}]
 
     analysis = llm.analyze_offer_and_profile(OFFER, PROFILE)

@@ -88,6 +88,37 @@ _OVERCLAIMS = (
 )
 
 
+def _misplaced_metric_issues(description, experience):
+    """Porcentajes unidos a una acción distinta de la fuente.
+
+    Para cada porcentaje se toma la frase (entre comas) que lo contiene y se cuentan las
+    palabras que están en ESTA experiencia, pero solo en oraciones que no tienen ese
+    porcentaje: si son 3 o más, la cifra se trasladó a otra acción (p. ej., una mejora
+    que en la fuente es de unos informes aparece atribuida a unos tableros).
+    """
+    source_sentences = [
+        re.sub(r"(\d)\s+%", r"\1%", sentence)
+        for value in re.findall(r'"((?:[^"\\]|\\.)*)"', json.dumps(experience, ensure_ascii=False))
+        for sentence in re.split(r"(?<=[.!?])\s+", value)
+    ]
+    experience_terms = {_stem(term) for sentence in source_sentences for term in _significant_terms(sentence)}
+    issues = []
+    for clause in re.split(r"[,;:]|(?<=[.!?])\s+", re.sub(r"(\d)\s+%", r"\1%", description or "")):
+        for metric in re.findall(r"\d+(?:[.,]\d+)?%", clause):
+            metric_terms = {
+                _stem(term)
+                for sentence in source_sentences if re.search(rf"(?<![\d.,]){re.escape(metric)}", sentence)
+                for term in _significant_terms(sentence)
+            }
+            if not metric_terms:
+                continue  # la cifra no está en la experiencia: lo reporta el control de cifras
+            clause_terms = {_stem(term) for term in _significant_terms(clause)}
+            borrowed = (clause_terms & experience_terms) - metric_terms
+            if len(borrowed) >= 3:
+                issues.append(f"la cifra {metric} aparece unida a una acción distinta de la fuente: «{clause.strip()}»")
+    return issues
+
+
 def _overclaim_issues(text, source):
     source_text = json.dumps(source, ensure_ascii=False) if not isinstance(source, str) else source
     return [
@@ -130,9 +161,11 @@ def _summary_validation_issues(summary, profile, offer_text, include_style=True,
         cliches = [phrase for phrase in _SUMMARY_CLICHES if phrase in summary_lower]
         if cliches:
             issues.append("usa muletillas: " + ", ".join(cliches))
+        # Dos "y" en una oración es español normal ("Diseño y entreno modelos con Python y
+        # Spark"); tres o más ya es una oración encadenada que conviene dividir.
         for sentence in re.split(r"(?<=[.!?])\s+", summary_text):
-            if len(re.findall(r"\b[ye]\b", sentence.casefold())) > 1:
-                issues.append(f'oración con más de una "y" (divídela o usa comas): «{sentence.strip()}»')
+            if len(re.findall(r"\b[ye]\b", sentence.casefold())) > 2:
+                issues.append(f'oración con tres o más "y" (divídela en dos oraciones): «{sentence.strip()}»')
 
     offer_terms = {term for term in _significant_terms(offer_text) if len(term) >= 4}
     summary_terms = _significant_terms(summary)
@@ -333,6 +366,7 @@ def _experience_issues(description, experience, offer_text, forbidden_companies,
     if new_numbers:
         issues.append("cifras que no están en esta experiencia: " + ", ".join(sorted(new_numbers)))
     issues.extend(_overclaim_issues(description, experience))
+    issues.extend(_misplaced_metric_issues(description, experience))
     if _uses_present_tense_for_completed_role(description, experience):
         issues.append("usa presente para una experiencia finalizada")
     return issues
@@ -504,7 +538,7 @@ _SUMMARY_INSTRUCTIONS = """resumen_profesional: entre 90 y 120 palabras, en 4 o 
 - Menciona como máximo 5 herramientas, elegidas de "software" según lo que prioriza la oferta. Si la oferta pide una tecnología que no está en mi perfil, no la nombres: destaca mi herramienta real más cercana (por ejemplo, Spark para procesamiento de grandes volúmenes), sin presentarla como equivalente. No nombres algoritmos ni clases de librerías.
 - Oración final: mi diferencial real según el perfil, sin exagerar.
 - No repitas proyectos, logros ni cifras de la sección de experiencia; sin porcentajes.
-- Máximo una "y" por oración: si necesitas más, divide la oración o usa comas. Cada idea aparece una sola vez. Oraciones de menos de 25 palabras, con verbos concretos.
+- No encadenes más de dos "y" en una oración: si hacen falta más, divídela en dos oraciones. Nunca quites la "y" final de una enumeración ni dejes listas unidas solo con comas ("rigor, mejora, enfoque" está mal). Cada idea aparece una sola vez. Oraciones de menos de 25 palabras, con verbos concretos.
 - Prohibido: "Puedo aportar", "Mi capacidad para", "Me desempeño en", "decisiones estratégicas", "conocimiento profundo", "soluciones escalables", "insights accionables" y plantillas genéricas.
 
 EJEMPLO DE ESTILO (es otra persona y otra profesión: imita solo el tono y la estructura, nunca sus datos):

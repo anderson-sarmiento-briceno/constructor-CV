@@ -5,6 +5,7 @@ nunca se imprime, se registra ni aparece en los mensajes de error.
 """
 import json
 import os
+import re
 import time
 from urllib import error, request
 
@@ -46,12 +47,26 @@ def _error_detail(exc):
         return ""
 
 
-def _wait_seconds(exc, attempt):
-    retry_after = exc.headers.get("retry-after") if exc.headers else None
+def _wait_from_message(detail):
+    """Espera que Groq indica en el texto del error ("try again in 1m2.5s", "12.58s", "450ms")."""
+    match = re.search(r"try again in (?:(\d+)m)?(\d+(?:\.\d+)?)(ms|s)", detail or "")
+    if not match:
+        return None
+    minutes, amount, unit = match.groups()
+    seconds = float(amount) / 1000 if unit == "ms" else float(amount)
+    return seconds + 60 * int(minutes or 0)
+
+
+def _wait_seconds(exc, attempt, detail=""):
+    """Espera antes de reintentar: cabecera retry-after, o la que dice el mensaje de Groq
+    (con un segundo de margen), o una espera creciente si no hay ninguna."""
     try:
-        wait = float(retry_after)
+        wait = float(exc.headers.get("retry-after")) if exc.headers else None
     except (TypeError, ValueError):
-        wait = 2 ** attempt
+        wait = None
+    if wait is None:
+        from_message = _wait_from_message(detail)
+        wait = from_message + 1 if from_message is not None else 2 ** attempt
     return min(max(wait, 1), _MAX_WAIT_SECONDS)
 
 
@@ -90,10 +105,10 @@ def chat(system, user, json_mode=True, max_retries=3):
             content = parsed["choices"][0]["message"]["content"] or ""
             return json.loads(content) if json_mode else content.strip()
         except error.HTTPError as exc:
-            if exc.code in _RETRY_STATUS and attempt < max_retries:
-                time.sleep(_wait_seconds(exc, attempt))
-                continue
             detail = _error_detail(exc)
+            if exc.code in _RETRY_STATUS and attempt < max_retries:
+                time.sleep(_wait_seconds(exc, attempt, detail))
+                continue
             # 400 "Failed to generate JSON": el modelo produjo un JSON inválido en esa
             # generación; es ocasional, así que se repite la misma petición.
             if exc.code == 400 and "json" in detail.casefold() and attempt < max_retries:
