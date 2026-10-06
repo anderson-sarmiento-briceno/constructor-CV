@@ -12,6 +12,7 @@ nombre, contacto ni foto.
 """
 import json
 import os
+import re
 import time
 from urllib import error, request
 
@@ -21,6 +22,7 @@ from src.llm.llm import (
     _ECHO_STEM,
     _compact,
     _compact_profile_for_summary,
+    _misplaced_metric_issues,
     _significant_terms,
     _stem,
     _stems_of,
@@ -161,14 +163,14 @@ def _call_gemini(system, user, model, key, retries=3):
     raise GeminiUnavailable("sigue saturado tras los reintentos")
 
 
-def _ask_gemini(system, user):
-    """Prueba el modelo principal con cada clave y luego el de respaldo con cada clave.
+def _ask_gemini(system, user, models=None):
+    """Prueba cada modelo (por defecto el principal y luego el de respaldo) con cada clave.
 
     Devuelve (resultado, "modelo con clave N", fallos previos) o lanza GeminiUnavailable
     con todos los motivos.
     """
     failures = []
-    for model in gemini_models():
+    for model in models or gemini_models():
         for label, key in _gemini_keys():
             try:
                 return _call_gemini(system, user, model, key), f"{model} con {label}", failures
@@ -268,6 +270,122 @@ EXPERIENCIAS (texto_actual = borrador a reescribir; fuente = mi perfil maestro, 
     return proposals, used, failures
 
 
+# ---------------------------------------------------------------------------
+# Revisión local (gratis) de lo que redactó Gemini en las experiencias y, solo si hay
+# errores, una única llamada de corrección con las experiencias afectadas.
+# ---------------------------------------------------------------------------
+_PERCENT = r"\d+(?:[.,]\d+)?%"
+# Palabras con las que se describe cualquier cambio en una métrica: no indican un cambio de
+# significado aunque la fuente use otra ("disminución" en lugar de "reducción").
+_CHANGE_WORDS = {"reducción", "disminución", "mejora", "aumento", "incremento", "ahorro", "porcentaje", "casos"}
+_VERB_ENDINGS = ("ando", "iendo", "endo", "aron", "ieron", "ó", "é", "í", "ar", "er", "ir")
+
+
+def _source_sentences(source):
+    text = " ".join([str(source.get("descripcion", ""))] + [str(item) for item in source.get("logros", [])])
+    return [re.sub(r"(\d)\s+%", r"\1%", sentence) for sentence in re.split(r"(?<=[.!?])\s+", text) if sentence.strip()]
+
+
+def _mentioned_tools(text, tools):
+    lowered = (text or "").casefold()
+    return {
+        tool for tool in tools
+        if tool and re.search(r"(?<!\w)" + re.escape(str(tool).casefold()) + r"(?!\w)", lowered)
+    }
+
+
+def _review_experience(text, source, other_tools):
+    """Errores de hechos en una experiencia redactada por Gemini, comparada con su fuente."""
+    issues = []
+    text = re.sub(r"(\d)\s+%", r"\1%", text or "")
+    sentences_source = _source_sentences(source)
+    source_text = " ".join(sentences_source)
+    source_stems = _stems_of(source_text, _ECHO_STEM)
+
+    new_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", text)) - set(re.findall(r"\d+(?:[.,]\d+)?", source_text))
+    if new_numbers:
+        issues.append("cifras que no están en la fuente: " + ", ".join(sorted(new_numbers)))
+
+    for sentence in re.split(r"(?<=[.!?])\s+", text):
+        metrics = set(re.findall(_PERCENT, sentence))
+        # Varias cifras en una oración solo si en la fuente también van juntas.
+        if len(metrics) > 1 and not any(all(metric in src for metric in metrics) for src in sentences_source):
+            issues.append(f"une cifras que en la fuente son de acciones distintas ({', '.join(sorted(metrics))}): «{sentence.strip()}»")
+        # Palabras junto a cada cifra que no aparecen en la fuente (p. ej., "incidentes" por "accidentes").
+        words = re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]+|" + _PERCENT, sentence)
+        for position, word in enumerate(words):
+            if not word.endswith("%"):
+                continue
+            for term in words[max(0, position - 6): position + 7]:
+                lowered = term.casefold()
+                if (term.endswith("%") or len(lowered) < 5 or lowered in _CHANGE_WORDS
+                        or lowered.endswith(_VERB_ENDINGS) or lowered not in _significant_terms(term)):
+                    continue
+                if _stem(lowered, _ECHO_STEM) not in source_stems:
+                    issues.append(f"junto a la cifra {word} aparece «{term}», que no está en la fuente")
+
+    issues.extend(_misplaced_metric_issues(text, source))
+    foreign = _mentioned_tools(text, other_tools) - _mentioned_tools(source_text, other_tools)
+    if foreign:
+        issues.append("menciona herramientas de otra experiencia: " + ", ".join(sorted(foreign)))
+    return list(dict.fromkeys(issues))
+
+
+def _correct_experiences(flagged):
+    """Una sola llamada para corregir solo las experiencias con errores. Usa primero el
+    modelo de respaldo (el ligero, con más cupo gratuito) para gastar poco."""
+    prompt = f"""TAREA: corrige SOLO los problemas indicados en cada descripción, cambiando lo mínimo y conservando su estilo y su longitud.
+
+Devuelve JSON con esta forma:
+{{"experiencias":[{{"indice":0,"descripcion":"..."}}]}}
+
+DESCRIPCIONES CON PROBLEMAS (fuente = mi perfil maestro, la verdad):
+{json.dumps(flagged, ensure_ascii=False)}"""
+    models = list(dict.fromkeys(reversed(gemini_models())))
+    result, used, failures = _ask_gemini(_EXPERIENCE_SYSTEM, prompt, models)
+    corrected = {}
+    items = result.get("experiencias") if isinstance(result, dict) else None
+    for item in items if isinstance(items, list) else []:
+        if isinstance(item, dict) and isinstance(item.get("indice"), int) and str(item.get("descripcion", "")).strip():
+            corrected[item["indice"]] = str(item["descripcion"]).strip()
+    return corrected, used, failures
+
+
+def _review_and_correct(experiences, final_descriptions, proposals, profile, report):
+    """Revisa localmente lo que redactó Gemini y, si hay errores, pide UNA corrección.
+    El texto final siempre es de Gemini; lo que siga mal queda como aviso para revisar."""
+    sources = [_source_experience(item, profile) for item in experiences]
+    all_tools = [set(source.get("herramientas", [])) for source in sources]
+
+    def review(index):
+        other_tools = set().union(*(tools for i, tools in enumerate(all_tools) if i != index)) - all_tools[index]
+        return _review_experience(final_descriptions[index], sources[index], other_tools)
+
+    flagged = {index: review(index) for index in proposals if index < len(experiences) and sources[index]}
+    flagged = {index: issues for index, issues in flagged.items() if issues}
+    report["correccion"] = {"revisadas": len(proposals), "con_errores": len(flagged)}
+    if not flagged:
+        return
+
+    blocks = [{"indice": index, "texto": final_descriptions[index], "problemas": issues, "fuente": sources[index]}
+              for index, issues in flagged.items()]
+    try:
+        corrected, used, failures = _correct_experiences(blocks)
+        report["correccion"]["modelo"] = used
+        report["intentos_fallidos"] += failures
+    except GeminiUnavailable as exc:
+        corrected = {}
+        report["avisos"].append(f"No se pudo pedir la corrección a Gemini ({exc}).")
+    for index, text in corrected.items():
+        if index in flagged:
+            final_descriptions[index] = text
+    for index in flagged:
+        remaining = review(index)
+        if remaining:
+            name = experiences[index].get("empresa", f"experiencia {index}")
+            report["avisos"].append(f"Revisa {name} antes de enviar: " + "; ".join(remaining))
+
+
 def polish_with_gemini(summary, experiences, priorities, profile, offer_text=None, unevidenced=None):
     """Redacta con Gemini el perfil profesional (un prompt) y las experiencias (otro prompt).
 
@@ -313,6 +431,7 @@ def polish_with_gemini(summary, experiences, priorities, profile, offer_text=Non
                 "bloque": item.get("empresa", f"experiencia {index}"),
                 "resultado": "redactado por Gemini" if polished else "Gemini lo devolvió vacío; se conserva el de Groq",
             })
+        _review_and_correct(experiences, final_descriptions, proposals, profile, report)
     except GeminiUnavailable as exc:
         report["avisos"].append(f"Experiencias: Gemini no disponible ({exc}); se conservan los textos de Groq.")
         for index, item in enumerate(experiences):

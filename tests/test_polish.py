@@ -13,7 +13,7 @@ PROFILE = {
     "software": ["Python", "Power BI"],
     "experiencia": [{"empresa": "Green Mobil", "cargo": "Científico de Datos", "fechas": "2025",
                      "herramientas": ["Python", "Power BI"],
-                     "descripcion": "Construí informes con telemetría, mejorando un 28% las proyecciones."}],
+                     "descripcion": "Construí informes con telemetría de consumo, mejorando un 28% las proyecciones de consumo."}],
 }
 SUMMARY = "Soy Ingeniero Eléctrico y Científico de Datos. Desarrollo modelos predictivos con Python y tableros en Power BI."
 EXPERIENCES = PROFILE["experiencia"]
@@ -118,6 +118,47 @@ def test_recommended_keywords_come_from_profile_and_offer_without_variant_flood(
     assert "Excel" not in keywords  # no está en la oferta
     assert keywords[:3] == ["Modelos predictivos", "Python", "Machine Learning"]  # exactas primero
     assert sum(item.startswith("Modelos") for item in keywords) <= 2
+
+
+def test_review_detects_merged_metrics_changed_words_and_foreign_tools():
+    source = {"descripcion": "Desplegué modelos con APIs. Optimicé código en Spark, reduciendo en un 40% el tiempo. "
+                             "Automaticé el web scraping, reduciendo en un 75% la recolección manual. "
+                             "Mis modelos de riesgo redujeron un 30% los accidentes.",
+              "herramientas": ["Spark"]}
+    merged = "Desplegué modelos con APIs, reduciendo en un 40% el tiempo y en un 75% la recolección manual."
+    changed = "Mis modelos de riesgo redujeron un 30% los incidentes."
+    foreign = "Optimicé código en Spark y Tableau, reduciendo en un 40% el tiempo."
+
+    assert any("une cifras" in issue for issue in polish._review_experience(merged, source, set()))
+    assert any("incidentes" in issue for issue in polish._review_experience(changed, source, set()))
+    assert any("Tableau" in issue for issue in polish._review_experience(foreign, source, {"Tableau"}))
+    assert polish._review_experience("Mis modelos de riesgo redujeron un 30% los accidentes.", source, set()) == []
+
+
+def test_errors_trigger_one_cheap_correction_and_text_stays_from_gemini(gemini):
+    bad = "Construí informes de telemetría que mejoraron un 28% los incidentes de consumo."
+    good = "Automaticé informes de telemetría, mejorando un 28% las proyecciones de consumo."
+    gemini["responses"] = [
+        PROFILE_OK(),
+        _gemini_ok({"experiencias": [{"indice": 0, "descripcion": bad}]}),
+        _gemini_ok({"experiencias": [{"indice": 0, "descripcion": good}]}),
+    ]
+
+    _, descriptions, report = polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)
+
+    assert len(gemini["requests"]) == 3  # perfil + experiencias + 1 corrección
+    assert polish.DEFAULT_GEMINI_FALLBACK_MODEL in gemini["requests"][2].full_url  # la corrección usa el ligero
+    assert "incidentes" in gemini["requests"][2].data.decode()
+    assert descriptions == [good]
+    assert report["correccion"]["con_errores"] == 1 and report["avisos"] == []
+
+
+def test_no_correction_call_when_gemini_text_is_correct(gemini):
+    gemini["responses"] = [PROFILE_OK(), EXPERIENCES_OK()]
+
+    polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)
+
+    assert len(gemini["requests"]) == 2
 
 
 def test_gemini_text_is_used_without_local_checks(gemini):
