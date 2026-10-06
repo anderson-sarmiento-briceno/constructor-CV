@@ -15,7 +15,7 @@
     "foto": null
   },
   "perfil_profesional": {
-    "resumen": "Científico de Datos e Ingeniero Eléctrico con especialización en Gerencia de Proyectos y formación en Ciencia de Datos. Más de 15 años de trayectoria integrando analítica avanzada, infraestructura tecnológica y optimización de procesos, con un enfoque consistente en generar resultados medibles y convertir datos complejos en información estratégica para la toma de decisiones. He diseñado e implementado modelos predictivos y de regresión orientados a la proyección del consumo energético y al establecimiento de metas de eficiencia, en el marco de la implementación de la norma ISO 50001. Diseñé soluciones de análisis de desgaste de flota orientadas al mantenimiento predictivo e implementé la automatización integral de informes de telemetría y operación mediante archivos Parquet, pipelines ETL y dashboards en Power BI. Complementé estas capacidades con herramientas interactivas en Streamlit para el análisis comparativo de demanda a partir de archivos GeoJSON, permitiendo calcular la distribución de pasajeros origen-destino por ruta y localidad. En el ámbito freelance he diseñado e implementado soluciones de Inteligencia Artificial y Machine Learning, visión por computadora con YOLO, chatbots conversacionales, automatización de procesos, web scraping y pipelines ETL aplicadas a los sectores comercial, financiero y de salud. Desarrollé chatbots comerciales integrados con WhatsApp API, sistemas de agendamiento automatizado de citas médicas sincronizados con Google Calendar, y bots en Python integrados con MetaTrader 5 para el mercado Forex. Asimismo, implementé procesos de extracción y transformación de datos desde fuentes web. Esta experiencia se complementa con más de 13 años liderando proyectos de infraestructura y redes MT/BT en Enel, donde dirigí más de 20 proyectos bajo normatividad CREG y RETIE. En ese entorno desarrollé modelos predictivos de riesgo y un sistema de alertas tempranas de armónicos con Python y AWS. Mi enfoque combina rigor analítico, automatización y orientación a resultados, con la capacidad de traducir problemas de negocio en soluciones de datos escalables y de alto impacto."
+    "resumen": "Científico de Datos e Ingeniero Eléctrico con especialización en Gerencia de Proyectos y formación en Ciencia de Datos. Más de 15 años de trayectoria integrando analítica avanzada, infraestructura tecnológica y optimización de procesos, con un enfoque consistente en generar resultados medibles y convertir datos complejos en información estratégica para la toma de decisiones. He diseñado e implementado modelos predictivos y de regresión orientados a la proyección del consumo energético y al establecimiento de metas de eficiencia, en el marco de la implementación de la norma ISO 50001. Diseñé soluciones de análisis de desgaste de flota orientadas al mantenimiento predictivo e implementé la automatización integral de informes de telemetría y operación mediante archivos Parquet, pipelines ETL y dashboards en Power BI. Complementé estas capacidades con herramientas interactivas en Streamlit para el análisis comparativo de demanda a partir de archivos GeoJSON, permitiendo calcular la distribución de pasajeros origen-destino por ruta y localidad, y me apoyé en Claude como herramienta de Inteligencia Artificial para desarrollar varias de estas soluciones. En el ámbito freelance he diseñado e implementado soluciones de Inteligencia Artificial y Machine Learning, visión por computadora con YOLO, chatbots conversacionales con OpenAI, automatización de procesos, web scraping y pipelines ETL aplicadas a los sectores comercial, financiero y de salud. Desarrollé chatbots comerciales integrados con WhatsApp API, sistemas de agendamiento automatizado de citas médicas sincronizados con Google Calendar, y bots en Python integrados con MetaTrader 5 para el mercado Forex. Asimismo, implementé procesos de extracción y transformación de datos desde fuentes web. Esta experiencia se complementa con más de 13 años liderando proyectos de infraestructura y redes MT/BT en Enel, donde dirigí más de 20 proyectos bajo normatividad CREG y RETIE. En ese entorno desarrollé modelos predictivos de riesgo y un sistema de alertas tempranas de armónicos con Python y AWS. Mi enfoque combina rigor analítico, automatización y orientación a resultados, con la capacidad de traducir problemas de negocio en soluciones de datos escalables y de alto impacto."
   },
   "formacion": [
     {
@@ -50,7 +50,8 @@
         "Diseño de pipelines ETL desde APIs, Siesa, Excel y Parquet hacia PostgreSQL.",
         "Construcción de dashboards e indicadores operativos en Power BI.",
         "Análisis de desgaste de flota para apoyar mantenimiento predictivo.",
-        "Desarrollo de herramienta en Streamlit para análisis comparativo de rutas del SITP."
+        "Desarrollo de herramienta en Streamlit para análisis comparativo de rutas del SITP.",
+        "Uso de Claude como herramienta de Inteligencia Artificial en el desarrollo de estas soluciones."
       ],
       "proyectos": [
         "Modelo de regresión lineal de consumo energético en la implementación de la norma ISO 50001.",
@@ -65,7 +66,7 @@
         "Diseño e implementación de un modelo de regresión lineal del consumo energético en el marco de la implementación de la norma ISO 50001; las medidas aplicadas a partir del modelo redujeron el consumo en un 6%.",
         "Desarrollo de una herramienta en Streamlit para comparar rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas."
       ],
-      "descripcion": "Diseñé e implementé un modelo de regresión lineal del consumo energético de una flota de buses eléctricos, en el marco de la implementación de la norma ISO 50001. Las medidas aplicadas a partir de ese modelo redujeron el consumo energético en un 6%. Construí informes automatizados a partir de grandes volúmenes de datos de telemetría y archivos Parquet, reduciendo en un 80% el tiempo dedicado a la generación de reportes. Diseñé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión predictiva del mantenimiento, mejorando en un 28% la precisión de las proyecciones de desgaste. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL, integrando los datos en dashboards interactivos de Power BI para la toma de decisiones operativas. Desarrollé una herramienta en Streamlit para comparar 5 rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda."
+      "descripcion": "Diseñé e implementé un modelo de regresión lineal del consumo energético de una flota de buses eléctricos, en el marco de la implementación de la norma ISO 50001. Las medidas aplicadas a partir de ese modelo redujeron el consumo energético en un 6%. Construí informes automatizados a partir de grandes volúmenes de datos de telemetría y archivos Parquet, reduciendo en un 80% el tiempo dedicado a la generación de reportes. Diseñé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión predictiva del mantenimiento, mejorando en un 28% la precisión de las proyecciones de desgaste. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL, integrando los datos en dashboards interactivos de Power BI para la toma de decisiones operativas. Desarrollé una herramienta en Streamlit para comparar 5 rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda. Me apoyé en Claude, como herramienta de Inteligencia Artificial, para desarrollar varias de estas soluciones."
     },
     {
       "empresa": "Consultor Freelance",
@@ -73,8 +74,8 @@
       "fechas": "Sep 2023 – Jul 2025",
       "sectores": ["Automatización comercial", "Mercados financieros", "Análisis deportivo", "Salud", "Soluciones de datos"],
       "responsabilidades": [
-        "Diseño de soluciones de Ciencia de Datos, Machine Learning y automatización.",
-        "Desarrollo de chatbots de ventas con n8n y WhatsApp Business API.",
+        "Diseño de soluciones de Inteligencia Artificial, Ciencia de Datos, Machine Learning y automatización.",
+        "Desarrollo de chatbots de ventas con OpenAI, n8n y WhatsApp Business API.",
         "Construcción de bots de análisis de mercados Forex integrados con MetaTrader 5.",
         "Desarrollo de modelos predictivos para análisis deportivo.",
         "Desarrollo de un detector de placas de vehículos en imágenes con YOLO (modelos de clasificación y detección de objetos).",
@@ -82,7 +83,7 @@
         "Despliegue de modelos ML, APIs y pipelines automatizados."
       ],
       "proyectos": [
-        "Chatbots de ventas y automatización comercial.",
+        "Chatbots de ventas con OpenAI y automatización comercial.",
         "Bots de análisis predictivo de mercados Forex con MetaTrader 5.",
         "Modelos predictivos aplicados a datos deportivos.",
         "Detector de placas de vehículos en imágenes con YOLO.",
@@ -96,7 +97,7 @@
         "Despliegue de modelos ML en producción mediante APIs y pipelines, y optimización de código en Python y Spark que redujo en un 40% el tiempo de procesamiento.",
         "Automatización de extracción, transformación y almacenamiento de datos web con reducción del 75% en tiempo de recolección manual de información."
       ],
-      "descripcion": "Diseñé e implementé soluciones de Ciencia de Datos, Machine Learning y automatización para diferentes necesidades de negocio. Desarrollé chatbots de ventas con n8n y WhatsApp Business API y lógica comercial avanzada en Python, creando flujos conversacionales que generaron +35% en tasas de conversión, reducción del 50% en costos de adquisición y automatización del 70% de preguntas frecuentes. Desarrollé bots para análisis de mercados financieros y Forex integrados con MetaTrader 5, utilizando modelos predictivos basados en árboles de regresión para analizar variables de mercado y generar señales de apoyo a la toma de decisiones, con una precisión del 82% en las señales de trading. Construí modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning. Desarrollé un detector de placas de vehículos en imágenes con YOLO, aplicando modelos de clasificación y detección de objetos. Diseñé e implementé procesos ETL y web scraping para extraer, transformar, validar y almacenar información proveniente de diferentes fuentes web. Implementé modelos de Machine Learning en producción, APIs, pipelines automatizados y soluciones de procesamiento de datos, además de optimizar código en Python y Spark, reduciendo en un 40% el tiempo de procesamiento."
+      "descripcion": "Diseñé e implementé soluciones de Inteligencia Artificial, Ciencia de Datos con modelos de Machine Learning y automatización para diferentes necesidades de negocio. Desarrollé chatbots de ventas con OpenAI, n8n y WhatsApp Business API, con lógica comercial avanzada en Python, creando flujos conversacionales que generaron +35% en tasas de conversión, reducción del 50% en costos de adquisición y automatización del 70% de preguntas frecuentes. Desarrollé bots para análisis de mercados financieros y Forex integrados con MetaTrader 5, utilizando modelos predictivos basados en árboles de regresión para analizar variables de mercado y generar señales de apoyo a la toma de decisiones, con una precisión del 82% en las señales de trading. Construí modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning. Desarrollé un detector de placas de vehículos en imágenes con YOLO, aplicando modelos de clasificación y detección de objetos. Diseñé e implementé procesos ETL y web scraping para extraer, transformar, validar y almacenar información proveniente de diferentes fuentes web. Implementé modelos de Machine Learning en producción, APIs, pipelines automatizados y soluciones de procesamiento de datos, además de optimizar código en Python y Spark, reduciendo en un 40% el tiempo de procesamiento."
     },
     {
       "empresa": "Enel",
@@ -107,7 +108,8 @@
         "Planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos eléctricos.",
         "Dirección de más de 20 proyectos de redes aéreas bajo CREG y RETIE.",
         "Análisis de datos históricos y operativos para eficiencia y reducción de costos.",
-        "Desarrollo de modelos predictivos de riesgo en obras eléctricas.",
+        "Desarrollo de modelos predictivos de riesgo en obras eléctricas con Machine Learning.",
+        "Automatización de procesos y análisis mediante código propio en Python.",
         "Construcción de dashboards HSEQ en Power BI.",
         "Alertas tempranas de armónicos con Python y AWS.",
         "Análisis en tiempo real con Tableau y modelado de redes con Digsilent y PSS/E."
@@ -119,13 +121,13 @@
         "Análisis de fallas críticas en tiempo real con Tableau.",
         "Modelado de redes eléctricas con Digsilent y PSS/E."
       ],
-      "herramientas": ["Python", "AWS", "Power BI", "Tableau", "Digsilent", "PSS/E", "CREG", "RETIE", "HSEQ", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "Machine Learning"],
+      "herramientas": ["Python", "AWS", "Power BI", "Tableau", "Digsilent", "PSS/E", "CREG", "RETIE", "HSEQ", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "Machine Learning", "Automatización con Python"],
       "logros": [
         "Reducción del 40% en accidentes mediante modelos predictivos de riesgo.",
         "Dirección de más de 20 proyectos de redes aéreas con cumplimiento de plazos y presupuestos en el 85% de los proyectos.",
         "Implementación de alertas tempranas para seguimiento de armónicos, logrando una reducción del 55% en tiempo de detección de anomalías."
       ],
-      "descripcion": "Lideré equipos multidisciplinarios en la planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos de infraestructura eléctrica y redes MT/BT. Dirigí más de 20 proyectos de redes aéreas bajo estándares CREG y RETIE, cumpliendo plazos y presupuestos en el 85% de los proyectos. Desarrollé modelos predictivos para identificar patrones de riesgo en obras eléctricas, logrando una reducción del 40% en accidentes. Construí dashboards en Power BI para el monitoreo de indicadores HSEQ, incluyendo tasa de accidentabilidad y cumplimiento RETIE. Implementé un sistema de alertas tempranas para la identificación y seguimiento de armónicos con Python y AWS, reduciendo en un 55% el tiempo de detección de anomalías. Realicé análisis de datos en tiempo real con Tableau para apoyar la atención de fallas críticas, y participé en el modelado de redes eléctricas con Digsilent y PSS/E para evaluar y predecir el comportamiento operativo de los sistemas. Integré ingeniería eléctrica, gestión de proyectos y análisis de datos para apoyar la toma de decisiones técnicas y operativas."
+      "descripcion": "Lideré equipos multidisciplinarios en la planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos de infraestructura eléctrica y redes MT/BT. Dirigí más de 20 proyectos de redes aéreas bajo estándares CREG y RETIE, cumpliendo plazos y presupuestos en el 85% de los proyectos. Desarrollé modelos predictivos para identificar patrones de riesgo en obras eléctricas, logrando una reducción del 40% en accidentes. Construí dashboards en Power BI para el monitoreo de indicadores HSEQ, incluyendo tasa de accidentabilidad y cumplimiento RETIE. Implementé un sistema de alertas tempranas para la identificación y seguimiento de armónicos con Python y AWS, reduciendo en un 55% el tiempo de detección de anomalías. Realicé análisis de datos en tiempo real con Tableau para apoyar la atención de fallas críticas, y participé en el modelado de redes eléctricas con Digsilent y PSS/E para evaluar y predecir el comportamiento operativo de los sistemas. Integré ingeniería eléctrica, gestión de proyectos, análisis de datos y automatización mediante código propio en Python para apoyar la toma de decisiones técnicas y operativas."
     }
   ],
   "habilidades": [
@@ -296,7 +298,7 @@
     "Pipelines ETL automatizados con Python que unificaron APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL y Power BI, reduciendo el tiempo de integración de datos en un 70%.",
     "Construcción de dashboards interactivos en Power BI para seguimiento de consumo energético, operación de flota e indicadores de desempeño, permitiendo una toma de decisiones 60% más rápida.",
     "Desarrollo de una herramienta en Streamlit para comparar rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",
-    "Chatbots de ventas con n8n y WhatsApp Business API: +35 % de conversión, -50 % en costo de adquisición y 70 % de preguntas frecuentes automatizadas.",
+    "Chatbots de ventas con OpenAI, n8n y WhatsApp Business API: +35 % de conversión, -50 % en costo de adquisición y 70 % de preguntas frecuentes automatizadas.",
     "Desarrollo de bots para análisis predictivo de mercados Forex utilizando Python, árboles de regresión y plataforma MetaTrader 5, alcanzando una precisión del 82% en señales de trading.",
     "Desarrollo de modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning, con una mejora del 25% en la tasa de aciertos respecto a modelos baseline.",
     "Implementación de procesos ETL y web scraping para extracción, transformación y almacenamiento automatizado de información desde fuentes web, reduciendo el tiempo de recolección manual en un 75%.",
@@ -391,9 +393,10 @@
     },
     {
       "nombre": "Chatbots de ventas y automatización comercial",
-      "descripcion": "Diseño e implementación de chatbots de ventas integrados con n8n y WhatsApp Business API, incorporando lógica comercial en Python y automatización de preguntas frecuentes y procesos de atención.",
+      "descripcion": "Diseño e implementación de chatbots de ventas con OpenAI, integrados con n8n y WhatsApp Business API, incorporando lógica comercial en Python y automatización de preguntas frecuentes y procesos de atención.",
       "tecnologias": [
         "Python",
+        "OpenAI",
         "n8n",
         "WhatsApp Business API",
         "Chatbots",

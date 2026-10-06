@@ -59,9 +59,10 @@ _EXPERIENCE_SYSTEM = f"""Actúa como un consultor experto en redacción ejecutiv
 
 REESTRUCTURA:
 - Reformulación sintáctica real: no te limites a unir oraciones. Cambia la estructura de las frases, varía los verbos de acción ("Lideré", "Impulsé", "Estructuré", "Desplegué", "Automaticé") y ordena las ideas de lo más relevante para la oferta a lo complementario.
-- Abre la descripción con un verbo de acción directo en primera persona. Dentro del párrafo, enlaza las ideas con conectores como "Además", "Paralelamente" o "Asimismo".
+- Abre la descripción con un verbo de acción directo en primera persona. Usa como máximo UN conector de transición ("Además", "Asimismo", "Paralelamente") por descripción y varía la forma de enlazar las ideas. No uses "mientras" ni "paralelamente" si el original no dice que las acciones fueron simultáneas.
 - Cada oración tiene entre 15 y 30 palabras: combina en una misma oración las ideas relacionadas y nunca escribas frases sueltas de menos de 10 palabras ("Automaticé el procesamiento." está mal).
 - La acción y su resultado van SIEMPRE en la misma oración, tal como en el original (por ejemplo, "Desarrollé modelos de riesgo que redujeron un 40% los accidentes", nunca "Desarrollé modelos de riesgo. Logré reducir un 40% los accidentes.").
+- Cada cifra se queda con la acción exacta que la produjo según el original, aunque otra acción aparezca en la misma frase: si el original dice "desplegué modelos y optimicé el código, lo que redujo un X% el tiempo", la cifra es de optimizar el código, no de desplegar modelos. Nunca omitas la acción que produjo la cifra.
 - Usa conectores de causa-efecto SOLO cuando el original ya establece esa relación. Nunca inventes que una acción causó un resultado.
 - Primera persona del singular y tiempo pasado.
 - Conserva sin alteración todas las tecnologías, herramientas, normas y estándares, y todas las cifras y métricas, cada una unida al mismo resultado y a la misma acción que en el original. No elimines ninguna.
