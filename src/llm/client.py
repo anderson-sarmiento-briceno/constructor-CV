@@ -58,19 +58,23 @@ def _wait_from_message(detail):
 
 
 def _wait_seconds(exc, attempt, detail=""):
-    """Espera antes de reintentar: cabecera retry-after, o la que dice el mensaje de Groq
-    (con un segundo de margen), o una espera creciente si no hay ninguna."""
+    """Espera antes de reintentar: la MAYOR entre la cabecera retry-after y la que dice el
+    mensaje de Groq (con dos segundos de margen); si no hay ninguna, una espera creciente.
+    (La cabecera puede indicar menos tiempo del que hace falta para el límite por minuto.)"""
+    candidates = []
     try:
-        wait = float(exc.headers.get("retry-after")) if exc.headers else None
+        if exc.headers and exc.headers.get("retry-after"):
+            candidates.append(float(exc.headers.get("retry-after")))
     except (TypeError, ValueError):
-        wait = None
-    if wait is None:
-        from_message = _wait_from_message(detail)
-        wait = from_message + 1 if from_message is not None else 2 ** attempt
+        pass
+    from_message = _wait_from_message(detail)
+    if from_message is not None:
+        candidates.append(from_message + 2)
+    wait = max(candidates) if candidates else 5 * 2 ** attempt
     return min(max(wait, 1), _MAX_WAIT_SECONDS)
 
 
-def chat(system, user, json_mode=True, max_retries=3):
+def chat(system, user, json_mode=True, max_retries=5):
     """Envía un mensaje system + user y devuelve un dict (json_mode) o el texto."""
     payload = {
         "model": model_name(),

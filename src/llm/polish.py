@@ -17,7 +17,15 @@ from urllib import error, request
 
 from dotenv import load_dotenv
 
-from src.llm.llm import _compact, _compact_profile_for_summary, offer_terms_missing_from_profile
+from src.llm.llm import (
+    _ECHO_STEM,
+    _compact,
+    _compact_profile_for_summary,
+    _significant_terms,
+    _stem,
+    _stems_of,
+    offer_terms_missing_from_profile,
+)
 
 load_dotenv()
 
@@ -34,6 +42,7 @@ _SHARED_RULES = """PRESERVACIÓN RIGUROSA:
 - No agregues adjetivos inflados ("avanzado", "sofisticado", "robusto", "estratégico", "riguroso", "integral", "de alta precisión", "de alto impacto", "estrictos") ni muletillas ("garantizando", "apalancado", "articulando", "soluciones escalables", "decisiones estratégicas", "mi capacidad para", "mi ventaja competitiva").
 - PALABRAS PROHIBIDAS: nunca uses las palabras de la lista que se te entrega (aparecen en la oferta pero no en mi perfil), ni sus variantes. Las prioridades de la oferta solo indican qué destacar primero.
 - Ortografía impecable, incluidos los pretéritos ("optimicé", "automaticé", "organicé"). No uses punto y coma para encadenar ideas.
+- Copia los nombres propios, siglas y nombres de herramientas exactamente como aparecen, incluidos sus símbolos: "PSS/E", "MT/BT", "SQL / PostgreSQL", "ISO 50001". Nunca cambies una barra "/" por "y".
 
 Responde solo con el JSON pedido."""
 
@@ -49,6 +58,8 @@ CÓMO DEBE SER EL PERFIL:
 - Sin porcentajes ni cifras de resultados (van en la sección de experiencia). Sin repetir proyectos concretos de las experiencias.
 - No encadenes más de dos "y" en una oración, no dejes listas unidas solo con comas y no repitas palabras.
 - Si el material marca requisitos de la oferta como no evidenciados, no los menciones ni los insinúes.
+- Las prácticas de trabajo (análisis exploratorio, feature engineering, validación de modelos) se mencionan como mucho UNA vez en el perfil, juntas y como capacidad general: las experiencias ya dan el detalle.
+- PALABRAS CLAVE RECOMENDADAS: son capacidades que están a la vez en mi perfil y en la oferta. Usa de forma natural solo las que encajen (no todas y nunca en forma de lista) y preséntalas como capacidades generales: no las atribuyas a una empresa, un proyecto o un resultado concreto.
 
 EJEMPLO DE ESTILO (otra persona y otra profesión: imita solo el tono y la estructura, nunca sus datos):
 "Soy Arquitecta, especialista en vivienda social, con más de diez años de trayectoria en proyectos públicos. Diseño conjuntos habitacionales que equilibran costo, normativa y calidad de vida. Coordino equipos de obra y consultores para cumplir cronogramas exigentes. Trabajo con AutoCAD, Revit y Excel para presupuestar con precisión. Mi diferencial es entender a la vez el diseño, la obra y a las comunidades que la habitan."
@@ -64,9 +75,11 @@ REESTRUCTURA:
 - La acción y su resultado van SIEMPRE en la misma oración, tal como en el original (por ejemplo, "Desarrollé modelos de riesgo que redujeron un 40% los accidentes", nunca "Desarrollé modelos de riesgo. Logré reducir un 40% los accidentes.").
 - Cada cifra se queda con la acción exacta que la produjo según el original, aunque otra acción aparezca en la misma frase: si el original dice "desplegué modelos y optimicé el código, lo que redujo un X% el tiempo", la cifra es de optimizar el código, no de desplegar modelos. Nunca omitas la acción que produjo la cifra.
 - Usa conectores de causa-efecto SOLO cuando el original ya establece esa relación. Nunca inventes que una acción causó un resultado.
+- Recibes todas las experiencias juntas: coordínalas. Una práctica común a varias experiencias (por ejemplo, análisis exploratorio, feature engineering o validación de modelos) se menciona de forma explícita en UNA sola experiencia, la más relevante para la oferta; en las demás no repitas esa frase. Tampoco repitas entre experiencias la misma estructura de oración ni el mismo verbo inicial.
+- Cada experiencia trae "texto_actual" (el borrador a reescribir) y "fuente" (mi perfil maestro, que es la verdad). Si el borrador omitió una herramienta, acción o cifra de la fuente que sea relevante para la oferta, recupérala; si la cambió (por ejemplo, "incidentes" donde la fuente dice "accidentes", o una cifra unida a otra acción), corrígela según la fuente. Usa SOLO hechos de esa misma experiencia: nunca tomes datos de otra.
 - Primera persona del singular y tiempo pasado.
 - Conserva sin alteración todas las tecnologías, herramientas, normas y estándares, y todas las cifras y métricas, cada una unida al mismo resultado y a la misma acción que en el original. No elimines ninguna.
-- Cada descripción es UN SOLO PÁRRAFO continuo, sin listas ni títulos, de entre 80 y 130 palabras. No escribas el nombre de la empresa, el cargo ni las fechas: ya aparecen en el encabezado.
+- Cada descripción es UN SOLO PÁRRAFO continuo, sin listas ni títulos, de entre 80 y 130 palabras. El límite de 130 palabras es estricto: la fuente tiene más hechos de los que caben, así que elige los más relevantes para la oferta y deja fuera el resto. Si recuperas algo de la fuente, quita a cambio lo menos relevante. No escribas el nombre de la empresa, el cargo ni las fechas: ya aparecen en el encabezado.
 
 EJEMPLO DE TRANSFORMACIÓN (fíjate en que no se agrega ningún hecho):
 - ENTRADA: "Hice proyectos de software con Python y Django. Reduje errores en 20%. Usé PostgreSQL para las bases de datos y lideré 5 personas."
@@ -168,7 +181,41 @@ def _forbidden_line(forbidden):
     return "PALABRAS PROHIBIDAS (están en la oferta pero no en mi perfil): " + (", ".join(forbidden) or "ninguna")
 
 
-def _polish_profile(summary, priorities, profile, unevidenced, forbidden):
+def recommended_keywords(profile, offer_text, limit=7):
+    """Capacidades del perfil que la oferta también pide (todas sus palabras aparecen en la
+    oferta). Solo salen del perfil, así que usarlas no atribuye nada que no se tenga.
+
+    Orden: primero las que aparecen tal cual en la oferta; luego por la posición de su
+    palabra más específica (la que aparece más tarde). Como máximo 2 que empiecen por la
+    misma palabra, para no llenar la lista de variantes ("Modelos de...")."""
+    offer_lower = (offer_text or "").casefold()
+    offer_stems = _stems_of(offer_text, _ECHO_STEM)
+    candidates = list(dict.fromkeys(
+        str(item).strip()
+        for key in ("aptitudes", "competencias", "software")
+        for item in profile.get(key, []) if str(item).strip()
+    ))
+    ranked = []
+    for item in candidates:
+        terms = _significant_terms(item)
+        stems = {_stem(term, _ECHO_STEM) for term in terms}
+        if not stems or not stems <= offer_stems:
+            continue
+        exact = item.casefold() in offer_lower
+        positions = [offer_lower.find(term) for term in terms if term in offer_lower]
+        position = offer_lower.find(item.casefold()) if exact else max(positions, default=len(offer_lower))
+        ranked.append((not exact, position, item))
+    selected, first_words = [], {}
+    for _, _, item in sorted(ranked):
+        first_word = item.split()[0].casefold()
+        if first_words.get(first_word, 0) >= 2:
+            continue
+        first_words[first_word] = first_words.get(first_word, 0) + 1
+        selected.append(item)
+    return selected[:limit]
+
+
+def _polish_profile(summary, priorities, profile, unevidenced, forbidden, recommended):
     material = {
         "perfil_actual": summary,
         "hechos_del_perfil": _compact_profile_for_summary(profile),
@@ -181,6 +228,7 @@ Devuelve JSON con esta forma:
 {{"resumen":"..."}}
 
 PRIORIDADES DE LA OFERTA (solo para decidir qué destacar): {"; ".join(str(item) for item in priorities) or "ninguna"}
+PALABRAS CLAVE RECOMENDADAS (están en mi perfil y en la oferta): {", ".join(recommended) or "ninguna"}
 {_forbidden_line(forbidden)}
 
 MATERIAL:
@@ -189,9 +237,18 @@ MATERIAL:
     return str(result.get("resumen", "")).strip() if isinstance(result, dict) else "", used, failures
 
 
-def _polish_experiences(experiences, descriptions, priorities, forbidden):
+def _source_experience(item, profile):
+    """Descripción original, logros y herramientas de esa experiencia en el perfil maestro."""
+    for source in profile.get("experiencia", []):
+        if source.get("empresa") == item.get("empresa") and source.get("cargo") == item.get("cargo"):
+            return {key: source.get(key) for key in ("descripcion", "logros", "herramientas") if source.get(key)}
+    return {}
+
+
+def _polish_experiences(experiences, descriptions, priorities, forbidden, profile):
     blocks = [{"indice": index, "cargo": item.get("cargo", ""), "fechas": item.get("fechas", ""),
-               "descripcion": text} for index, (item, text) in enumerate(zip(experiences, descriptions))]
+               "texto_actual": text, "fuente": _source_experience(item, profile)}
+              for index, (item, text) in enumerate(zip(experiences, descriptions))]
     prompt = f"""TAREA: reescribe en profundidad cada descripción de experiencia, sin cambiar sus hechos.
 
 Devuelve JSON con esta forma:
@@ -200,7 +257,7 @@ Devuelve JSON con esta forma:
 PRIORIDADES DE LA OFERTA (solo para decidir qué destacar primero): {"; ".join(str(item) for item in priorities) or "ninguna"}
 {_forbidden_line(forbidden)}
 
-EXPERIENCIAS (originales):
+EXPERIENCIAS (texto_actual = borrador a reescribir; fuente = mi perfil maestro, la verdad):
 {json.dumps(blocks, ensure_ascii=False)}"""
     result, used, failures = _ask_gemini(_EXPERIENCE_SYSTEM, prompt)
     proposals = {}
@@ -227,11 +284,13 @@ def polish_with_gemini(summary, experiences, priorities, profile, offer_text=Non
 
     # Palabras de la oferta que no aparecen en ninguna parte del perfil (calculadas localmente).
     forbidden = offer_terms_missing_from_profile(offer_text, profile) if offer_text else []
+    recommended = recommended_keywords(profile, offer_text) if offer_text else []
     report["palabras_prohibidas"] = forbidden
+    report["palabras_clave_recomendadas"] = recommended
 
     final_summary = summary
     try:
-        polished, used, failures = _polish_profile(summary, priorities, profile, unevidenced, forbidden)
+        polished, used, failures = _polish_profile(summary, priorities, profile, unevidenced, forbidden, recommended)
         report["perfil"] = used
         report["intentos_fallidos"] += failures
         if polished:
@@ -243,7 +302,7 @@ def polish_with_gemini(summary, experiences, priorities, profile, offer_text=Non
 
     final_descriptions = list(descriptions)
     try:
-        proposals, used, failures = _polish_experiences(experiences, descriptions, priorities, forbidden)
+        proposals, used, failures = _polish_experiences(experiences, descriptions, priorities, forbidden, profile)
         report["experiencias"] = used
         report["intentos_fallidos"] += failures
         for index, item in enumerate(experiences):

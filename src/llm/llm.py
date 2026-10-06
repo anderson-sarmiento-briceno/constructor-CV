@@ -87,6 +87,41 @@ def _unevidenced_offer_terms(generated_text, offer_text, source_fact):
     }
 
 
+def relevant_sentences(text, offer_text, max_words=130):
+    """Para una descripción original larga: las oraciones más relacionadas con la oferta,
+    en su orden original y sin pasar de max_words. No reescribe nada; solo elige."""
+    text = str(text or "").strip()
+    if len(text.split()) <= max_words:
+        return text
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    offer_stems = _stems_of(offer_text, _ECHO_STEM)
+    sentence_stems = [
+        {_stem(term, _ECHO_STEM) for term in _significant_terms(sentence)} & offer_stems
+        for sentence in sentences
+    ]
+
+    # Selección voraz por cobertura: cada vez se elige la oración que aporta más términos
+    # de la oferta TODAVÍA no cubiertos por palabra usada (así no se eligen varias que dicen
+    # lo mismo y una oración larga no desplaza a dos cortas más relevantes).
+    chosen, covered, total = set(), set(), 0
+    while True:
+        candidates = [
+            (len(sentence_stems[i] - covered) / max(1, len(sentences[i].split())), len(sentence_stems[i] - covered), -i)
+            for i in range(len(sentences))
+            if i not in chosen and (not chosen or total + len(sentences[i].split()) <= max_words)
+        ]
+        if not candidates:
+            break
+        _, gain, negative_index = max(candidates)
+        if gain == 0 and chosen:
+            break
+        index = -negative_index
+        chosen.add(index)
+        covered |= sentence_stems[index]
+        total += len(sentences[index].split())
+    return " ".join(sentences[index] for index in sorted(chosen))
+
+
 def offer_terms_missing_from_profile(offer_text, profile, limit=60):
     """Términos de la oferta que no aparecen (ni por raíz) en ninguna parte del perfil:
     son las palabras que un redactor no debe usar para no atribuir algo que no se tiene."""
@@ -395,6 +430,14 @@ def _experience_issues(description, experience, offer_text, forbidden_companies,
     return issues
 
 
+_EXPERIENCE_PROMPT_FIELDS = ("empresa", "cargo", "fechas", "sectores", "descripcion", "logros", "herramientas")
+
+
+def _experience_for_prompt(experience):
+    """Campos de la experiencia que se envían a Groq (sin responsabilidades ni proyectos)."""
+    return {key: experience[key] for key in _EXPERIENCE_PROMPT_FIELDS if experience.get(key)}
+
+
 def _experience_proposals(result):
     """{indice: descripcion_adaptada} a partir de la respuesta del modelo."""
     items = result.get("experiencias") if isinstance(result.get("experiencias"), list) else []
@@ -417,7 +460,12 @@ def adapt_experiences_and_skills(profile, experiences, offer_text, forbidden_com
         "nuevas_tecnologias": profile.get("nuevas_tecnologias", []),
         "competencias": profile.get("competencias", []),
     }
-    source_experiences = [{"indice": index, **experience} for index, experience in enumerate(experiences)]
+    # A Groq solo se le envían los campos que no se repiten entre sí (las responsabilidades y
+    # los proyectos repiten lo que dice la descripción): así la llamada cabe holgada en el
+    # límite gratuito de tokens por minuto. La validación sigue usando la experiencia completa.
+    source_experiences = [
+        {"indice": index, **_experience_for_prompt(experience)} for index, experience in enumerate(experiences)
+    ]
     prompt = f"""TAREA: adapta cada una de mis experiencias a la oferta y selecciona mis habilidades más relevantes para ella.
 
 Devuelve JSON con esta forma:
@@ -487,7 +535,7 @@ TEXTO RECHAZADO:
 {proposals.get(index, "") or "(el modelo no devolvió texto para esta experiencia)"}
 
 EXPERIENCIA FUENTE:
-{_compact(experiences[index])}"""
+{_compact(_experience_for_prompt(experiences[index]))}"""
         retry_proposals[index] = str(_ask(retry_prompt).get("descripcion_adaptada", "")).strip()
 
     descriptions = []
@@ -505,7 +553,12 @@ EXPERIENCIA FUENTE:
                 proposed, issues, origin = retry_text, [], "llm_reintento"
             else:
                 issues = issues + [f"reintento: {reason}" for reason in retry_issues]
-        descriptions.append(proposed if origin != "fallback_local" else str(experience.get("descripcion", "")).strip())
+        # Si se usa el texto original y es largo, se muestran sus oraciones más relacionadas
+        # con la oferta (Gemini recibe igualmente la descripción completa como fuente).
+        descriptions.append(
+            proposed if origin != "fallback_local"
+            else relevant_sentences(experience.get("descripcion", ""), offer_text)
+        )
         diagnostics.append({
             "llm_consultado": True,
             "llm_respondio": bool(result),

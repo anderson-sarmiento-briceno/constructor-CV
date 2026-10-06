@@ -15,7 +15,7 @@
     "foto": null
   },
   "perfil_profesional": {
-    "resumen": "Científico de Datos e Ingeniero Eléctrico con especialización en Gerencia de Proyectos y formación en Ciencia de Datos. Más de 15 años de trayectoria integrando analítica avanzada, infraestructura tecnológica y optimización de procesos, con un enfoque consistente en generar resultados medibles y convertir datos complejos en información estratégica para la toma de decisiones. He diseñado e implementado modelos predictivos y de regresión orientados a la proyección del consumo energético y al establecimiento de metas de eficiencia, en el marco de la implementación de la norma ISO 50001. Diseñé soluciones de análisis de desgaste de flota orientadas al mantenimiento predictivo e implementé la automatización integral de informes de telemetría y operación mediante archivos Parquet, pipelines ETL y dashboards en Power BI. Complementé estas capacidades con herramientas interactivas en Streamlit para el análisis comparativo de demanda a partir de archivos GeoJSON, permitiendo calcular la distribución de pasajeros origen-destino por ruta y localidad, y me apoyé en Claude como herramienta de Inteligencia Artificial para desarrollar varias de estas soluciones. En el ámbito freelance he diseñado e implementado soluciones de Inteligencia Artificial y Machine Learning, visión por computadora con YOLO, chatbots conversacionales con OpenAI, automatización de procesos, web scraping y pipelines ETL aplicadas a los sectores comercial, financiero y de salud. Desarrollé chatbots comerciales integrados con WhatsApp API, sistemas de agendamiento automatizado de citas médicas sincronizados con Google Calendar, y bots en Python integrados con MetaTrader 5 para el mercado Forex. Asimismo, implementé procesos de extracción y transformación de datos desde fuentes web. Esta experiencia se complementa con más de 13 años liderando proyectos de infraestructura y redes MT/BT en Enel, donde dirigí más de 20 proyectos bajo normatividad CREG y RETIE. En ese entorno desarrollé modelos predictivos de riesgo y un sistema de alertas tempranas de armónicos con Python y AWS. Mi enfoque combina rigor analítico, automatización y orientación a resultados, con la capacidad de traducir problemas de negocio en soluciones de datos escalables y de alto impacto."
+    "resumen": "Científico de Datos e Ingeniero Eléctrico con especialización en Gerencia de Proyectos y formación en Ciencia de Datos. Más de 15 años de trayectoria integrando analítica avanzada, infraestructura tecnológica y optimización de procesos, con un enfoque consistente en generar resultados medibles y convertir datos complejos en información estratégica para la toma de decisiones. He diseñado e implementado modelos predictivos y de regresión orientados a la proyección del consumo energético y al establecimiento de metas de eficiencia, en el marco de la implementación de la norma ISO 50001, aplicando análisis exploratorio de datos, feature engineering y validación de modelos. Diseñé soluciones de análisis de desgaste de flota orientadas al mantenimiento predictivo e implementé la automatización integral de informes de telemetría y operación mediante archivos Parquet, pipelines ETL y dashboards en Power BI. Complementé estas capacidades con herramientas interactivas en Streamlit para el análisis comparativo de demanda a partir de archivos GeoJSON, permitiendo calcular la distribución de pasajeros origen-destino por ruta y localidad, y me apoyé en Claude como herramienta de Inteligencia Artificial para desarrollar varias de estas soluciones. En el ámbito freelance he diseñado e implementado soluciones de Inteligencia Artificial y Machine Learning, visión por computadora con YOLO, chatbots conversacionales con OpenAI, automatización de procesos, web scraping y pipelines ETL aplicadas a los sectores comercial, financiero y de salud. Desarrollé chatbots comerciales integrados con WhatsApp API, sistemas de agendamiento automatizado de citas médicas sincronizados con Google Calendar, y bots en Python integrados con MetaTrader 5 para el mercado Forex. Asimismo, implementé procesos de extracción y transformación de datos desde fuentes web. Esta experiencia se complementa con más de 13 años liderando proyectos de infraestructura y redes MT/BT en Enel, donde dirigí más de 20 proyectos bajo normatividad CREG y RETIE. En ese entorno desarrollé modelos predictivos de riesgo y un sistema de alertas tempranas de armónicos con Python y AWS. Mi enfoque combina rigor analítico, automatización y orientación a resultados, con la capacidad de traducir problemas de negocio en soluciones de datos escalables y de alto impacto."
   },
   "formacion": [
     {
@@ -51,22 +51,27 @@
         "Construcción de dashboards e indicadores operativos en Power BI.",
         "Análisis de desgaste de flota para apoyar mantenimiento predictivo.",
         "Desarrollo de herramienta en Streamlit para análisis comparativo de rutas del SITP.",
+        "Análisis exploratorio de datos, feature engineering y validación y evaluación de los modelos de consumo energético (pronóstico) y de desgaste.",
+        "Modelo del Estado de Salud (SOH) de baterías con XGBoost, validación cruzada GroupKFold y explicabilidad con SHAP.",
+        "Desarrollo de un sistema web en Django para historias clínicas del personal.",
         "Uso de Claude como herramienta de Inteligencia Artificial en el desarrollo de estas soluciones."
       ],
       "proyectos": [
-        "Modelo de regresión lineal de consumo energético en la implementación de la norma ISO 50001.",
-        "Informes automatizados de telemetría con archivos Parquet.",
+        "Modelo de regresión lineal de consumo energético y Línea Base Energética (LBEN) en la implementación de la norma ISO 50001.",
+        "Informes automatizados de telemetría con archivos Parquet, incluido el consumo en reposo por geocercas (KML).",
+        "Modelo del Estado de Salud (SOH) de las baterías con XGBoost y SHAP.",
+        "Sistema web en Django para gestión de historias clínicas del personal.",
         "Modelo de análisis de desgaste de flota.",
         "Herramienta en Streamlit para comparar rutas propias con el sistema SITP usando archivos GeoJSON."
       ],
-      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "Machine Learning", "Inteligencia Artificial", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA", "Streamlit", "GeoJSON"],
+      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "XGBoost", "SHAP", "NumPy", "Polars", "ReportLab", "Matplotlib", "Seaborn", "KML", "Django", "SQLite", "Machine Learning", "Inteligencia Artificial", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA", "Streamlit", "GeoJSON"],
       "logros": [
         "Automatización del procesamiento de grandes volúmenes de telemetría con reducción del 80% en el tiempo dedicado a la generación de informes.",
         "Modelo de análisis de desgaste de flota que mejoró en un 28% la precisión de las proyecciones de desgaste.",
         "Diseño e implementación de un modelo de regresión lineal del consumo energético en el marco de la implementación de la norma ISO 50001; las medidas aplicadas a partir del modelo redujeron el consumo en un 6%.",
         "Desarrollo de una herramienta en Streamlit para comparar rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas."
       ],
-      "descripcion": "Diseñé e implementé un modelo de regresión lineal del consumo energético de una flota de buses eléctricos, en el marco de la implementación de la norma ISO 50001. Las medidas aplicadas a partir de ese modelo redujeron el consumo energético en un 6%. Construí informes automatizados a partir de grandes volúmenes de datos de telemetría y archivos Parquet, reduciendo en un 80% el tiempo dedicado a la generación de reportes. Diseñé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión predictiva del mantenimiento, mejorando en un 28% la precisión de las proyecciones de desgaste. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL, integrando los datos en dashboards interactivos de Power BI para la toma de decisiones operativas. Desarrollé una herramienta en Streamlit para comparar 5 rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda. Me apoyé en Claude, como herramienta de Inteligencia Artificial, para desarrollar varias de estas soluciones."
+      "descripcion": "Diseñé e implementé un modelo de regresión lineal del consumo energético (kWh frente a km recorridos) de una flota de buses eléctricos para establecer su Línea Base Energética (LBEN) y sus metas de ahorro, en el marco de la implementación de la norma ISO 50001. Las medidas aplicadas a partir de ese modelo redujeron el consumo energético en un 6%. Construí informes automatizados en PDF con Polars y ReportLab a partir de grandes volúmenes de datos de telemetría y archivos Parquet, incluido el diagnóstico del consumo en reposo por geocercas (KML), reduciendo en un 80% el tiempo dedicado a la generación de reportes. Desarrollé un modelo del Estado de Salud (SOH) de las baterías de la flota con XGBoost, con validación cruzada GroupKFold y explicabilidad con SHAP para identificar los factores de degradación. Diseñé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión predictiva del mantenimiento, mejorando en un 28% la precisión de las proyecciones de desgaste. En los modelos de consumo energético y de desgaste de flota realicé análisis exploratorio de datos, feature engineering y validación y evaluación de los modelos. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL, integrando los datos en dashboards interactivos de Power BI para la toma de decisiones operativas. Desarrollé una herramienta en Streamlit para comparar 5 rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda. Desarrollé un sistema web en Django para el control y seguimiento de historias clínicas del personal, con importación masiva de registros. Me apoyé en Claude, como herramienta de Inteligencia Artificial, para desarrollar varias de estas soluciones."
     },
     {
       "empresa": "Consultor Freelance",
@@ -79,7 +84,9 @@
         "Construcción de bots de análisis de mercados Forex integrados con MetaTrader 5.",
         "Desarrollo de modelos predictivos para análisis deportivo.",
         "Desarrollo de un detector de placas de vehículos en imágenes con YOLO (modelos de clasificación y detección de objetos).",
+        "Análisis exploratorio de datos, feature engineering y validación y evaluación de modelos en los proyectos de Machine Learning.",
         "Diseño de procesos ETL y web scraping.",
+        "Prototipo de Data Warehouse con modelado dimensional (esquema estrella) y pipelines ETL en Python y R sobre Delta Lake y DuckDB.",
         "Despliegue de modelos ML, APIs y pipelines automatizados."
       ],
       "proyectos": [
@@ -87,9 +94,10 @@
         "Bots de análisis predictivo de mercados Forex con MetaTrader 5.",
         "Modelos predictivos aplicados a datos deportivos.",
         "Detector de placas de vehículos en imágenes con YOLO.",
-        "Procesos ETL y web scraping para fuentes web."
+        "Procesos ETL y web scraping para fuentes web.",
+        "Prototipo de Data Warehouse con Python, R, Delta Lake y DuckDB."
       ],
-      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "n8n", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión", "YOLO", "Visión por computadora", "Inteligencia Artificial", "OpenAI", "Canvas", "Make", "Cloud", "GitHub Copilot", "Claude", "Hugging Face", "Agentes de IA"],
+      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "n8n", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión", "R", "Delta Lake", "DuckDB", "Polars", "SQLAlchemy", "Data Warehouse", "YOLO", "Visión por computadora", "Inteligencia Artificial", "OpenAI", "Canvas", "Make", "Cloud", "GitHub Copilot", "Claude", "Hugging Face", "Agentes de IA"],
       "logros": [
         "Chatbots comerciales integrados con WhatsApp API que lograron un incremento del 35% en la conversión de ventas y automatizaron la resolución del 70% de las preguntas frecuentes",
         "Sistema automatizado de agendamiento de citas médicas sincronizado con Google Calendar para clínicas",
@@ -97,7 +105,7 @@
         "Despliegue de modelos ML en producción mediante APIs y pipelines, y optimización de código en Python y Spark que redujo en un 40% el tiempo de procesamiento.",
         "Automatización de extracción, transformación y almacenamiento de datos web con reducción del 75% en tiempo de recolección manual de información."
       ],
-      "descripcion": "Diseñé e implementé soluciones de Inteligencia Artificial, Ciencia de Datos con modelos de Machine Learning y automatización para diferentes necesidades de negocio. Desarrollé chatbots de ventas con OpenAI, n8n y WhatsApp Business API, con lógica comercial avanzada en Python, creando flujos conversacionales que generaron +35% en tasas de conversión, reducción del 50% en costos de adquisición y automatización del 70% de preguntas frecuentes. Desarrollé bots para análisis de mercados financieros y Forex integrados con MetaTrader 5, utilizando modelos predictivos basados en árboles de regresión para analizar variables de mercado y generar señales de apoyo a la toma de decisiones, con una precisión del 82% en las señales de trading. Construí modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning. Desarrollé un detector de placas de vehículos en imágenes con YOLO, aplicando modelos de clasificación y detección de objetos. Diseñé e implementé procesos ETL y web scraping para extraer, transformar, validar y almacenar información proveniente de diferentes fuentes web. Implementé modelos de Machine Learning en producción, APIs, pipelines automatizados y soluciones de procesamiento de datos, además de optimizar código en Python y Spark, reduciendo en un 40% el tiempo de procesamiento."
+      "descripcion": "Diseñé e implementé soluciones de Inteligencia Artificial, Ciencia de Datos con modelos de Machine Learning y automatización para diferentes necesidades de negocio. Desarrollé chatbots de ventas con OpenAI, n8n y WhatsApp Business API, con lógica comercial avanzada en Python, creando flujos conversacionales que generaron +35% en tasas de conversión, reducción del 50% en costos de adquisición y automatización del 70% de preguntas frecuentes. Desarrollé bots para análisis de mercados financieros y Forex integrados con MetaTrader 5, utilizando modelos de clasificación y de regresión basados en árboles para analizar variables de mercado y generar señales de apoyo a la toma de decisiones, con una precisión del 82% en las señales de trading. Construí modelos de clasificación y regresión para apuestas deportivas utilizando Python y técnicas de Machine Learning. Desarrollé un detector de placas de vehículos en imágenes con YOLO, aplicando modelos de clasificación y detección de objetos. En estos proyectos de Machine Learning realicé análisis exploratorio de datos, feature engineering y validación y evaluación de los modelos. Diseñé e implementé procesos ETL y web scraping para extraer, transformar, validar y almacenar información proveniente de diferentes fuentes web. Diseñé un prototipo de Data Warehouse con modelado dimensional en esquema estrella y pipelines ETL en Python y R, con almacenamiento en Delta Lake y DuckDB, usando Polars y SQLAlchemy para integrar fuentes heterogéneas (APIs, bases de datos, archivos, servicios SOAP y web scraping). Implementé modelos de Machine Learning en producción, APIs, pipelines automatizados y soluciones de procesamiento de datos, además de optimizar código en Python y Spark, reduciendo en un 40% el tiempo de procesamiento."
     },
     {
       "empresa": "Enel",
@@ -145,7 +153,20 @@
     "Machine Learning",
     "Inteligencia Artificial",
     "Modelos de clasificación",
+    "Modelos de pronóstico",
     "Visión por computadora",
+    "Análisis exploratorio de datos",
+    "Feature Engineering",
+    "Validación y evaluación de modelos",
+    "Explicabilidad de modelos (SHAP)",
+    "XGBoost",
+    "R",
+    "Polars",
+    "Delta Lake",
+    "DuckDB",
+    "Data Warehouse y modelado dimensional",
+    "Django",
+    "ReportLab",
     "YOLO",
     "n8n",
     "ETL",
@@ -220,6 +241,11 @@
     "Power BI",
     "Pandas / Scikit-learn",
     "Spark",
+    "XGBoost / SHAP",
+    "R",
+    "Polars",
+    "Delta Lake / DuckDB",
+    "Django",
     "YOLO",
     "n8n / WhatsApp Business API",
     "MetaTrader 5",
@@ -256,8 +282,14 @@
     "Modelos predictivos",
     "Modelos de regresión",
     "Modelos de clasificación",
+    "Modelos de pronóstico",
     "Visión por computadora",
     "Machine Learning",
+    "Análisis exploratorio de datos",
+    "Feature Engineering",
+    "Validación y evaluación de modelos",
+    "Explicabilidad de modelos (SHAP)",
+    "Data Warehouse y modelado dimensional",
     "ETL",
     "Pipelines de datos",
     "Procesamiento de grandes volúmenes de datos",
@@ -349,7 +381,7 @@
     },
     {
       "nombre": "Bots de análisis predictivo para mercados Forex",
-      "descripcion": "Desarrollo de soluciones automatizadas para análisis de mercados Forex utilizando modelos predictivos basados en árboles de regresión e integración con MetaTrader 5.",
+      "descripcion": "Desarrollo de soluciones automatizadas para análisis de mercados Forex utilizando modelos de clasificación y de regresión basados en árboles e integración con MetaTrader 5.",
       "tecnologias": [
         "Python",
         "Machine Learning",
@@ -368,6 +400,21 @@
         "Scikit-learn",
         "Análisis predictivo"
       ]
+    },
+    {
+      "nombre": "Estado de Salud (SOH) de baterías de buses eléctricos",
+      "descripcion": "Modelo del Estado de Salud de las baterías de la flota con XGBoost, con feature engineering, validación cruzada GroupKFold y explicabilidad con SHAP para identificar los factores de degradación y orientar el mantenimiento predictivo.",
+      "tecnologias": ["Python", "Pandas", "NumPy", "XGBoost", "SHAP", "Scikit-learn", "Matplotlib", "Seaborn"]
+    },
+    {
+      "nombre": "Sistema web de gestión de historias clínicas (Green Movil)",
+      "descripcion": "Sistema web en Django para el control y seguimiento de historias clínicas y diagnósticos del personal, con importación masiva de registros.",
+      "tecnologias": ["Python", "Django", "SQLite", "HTML", "CSS"]
+    },
+    {
+      "nombre": "Prototipo de Data Warehouse para flotas",
+      "descripcion": "Pipelines ETL en Python y R con modelado dimensional en esquema estrella, almacenamiento en Delta Lake y DuckDB, e ingesta desde APIs, bases de datos, archivos, servicios SOAP y web scraping, con control de procesos y notificaciones.",
+      "tecnologias": ["Python", "R", "Delta Lake", "DuckDB", "Polars", "SQLAlchemy", "PostgreSQL", "ETL"]
     },
     {
       "nombre": "Detector de placas de vehículos con YOLO",

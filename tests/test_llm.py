@@ -112,7 +112,16 @@ def test_client_retries_429_and_5xx_using_retry_after(fake_urlopen):
     fake_urlopen["responses"] = [_http_error(429, retry_after="3"), _http_error(503), _ok('{"b": 2}')]
 
     assert client.chat("reglas", "tarea") == {"b": 2}
-    assert fake_urlopen["sleeps"] == [3.0, 2.0]
+    assert fake_urlopen["sleeps"] == [3.0, 10.0]  # cabecera; luego espera creciente (5·2^intento)
+
+
+def test_client_429_uses_the_longest_wait_between_header_and_message(fake_urlopen):
+    # La cabecera pide 1 s, pero el mensaje dice 12 s: se espera lo mayor (12 s + 2 de margen).
+    error_429 = _http_error(429, retry_after="1", message="Rate limit reached. Please try again in 12.0s.")
+    fake_urlopen["responses"] = [error_429, _ok('{"e": 5}')]
+
+    assert client.chat("reglas", "tarea") == {"e": 5}
+    assert fake_urlopen["sleeps"] == [14.0]
 
 
 def test_client_429_waits_what_the_message_says_when_header_is_missing(fake_urlopen):
@@ -120,7 +129,7 @@ def test_client_429_waits_what_the_message_says_when_header_is_missing(fake_urlo
     fake_urlopen["responses"] = [_http_error(429, message=message), _ok('{"d": 4}')]
 
     assert client.chat("reglas", "tarea") == {"d": 4}
-    assert 13 <= fake_urlopen["sleeps"][0] <= 14  # 12,6 s del mensaje + 1 s de margen
+    assert 14 <= fake_urlopen["sleeps"][0] <= 15  # 12,6 s del mensaje + 2 s de margen
 
 
 def test_wait_from_message_understands_minutes_and_milliseconds():
@@ -323,6 +332,19 @@ def test_verb_and_noun_of_same_word_count_as_evidence():
     source = {"descripcion": "Lideré la ejecución de proyectos de redes."}
     assert llm._unevidenced_offer_terms("Ejecuté proyectos de redes.", offer, source) == set()
     assert "exploratorios" in llm._unevidenced_offer_terms("Hice análisis exploratorios.", offer, source)
+
+
+def test_long_original_description_keeps_most_relevant_sentences_in_order():
+    text = ("Lideré obras de redes eléctricas. " * 3 + "Desarrollé modelos de Machine Learning con Python. "
+            + "Coordiné compras de materiales. " * 10 + "Construí tableros en Power BI.").strip()
+    offer = "Buscamos experiencia en Machine Learning, Python y Power BI."
+
+    short = llm.relevant_sentences(text, offer, max_words=20)
+
+    assert len(short.split()) <= 20
+    assert "Machine Learning" in short and "Power BI" in short
+    assert short.index("Machine Learning") < short.index("Power BI")  # conserva el orden
+    assert llm.relevant_sentences("Texto corto.", offer) == "Texto corto."
 
 
 def test_overclaims_are_rejected_unless_source_says_so():

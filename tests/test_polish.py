@@ -95,6 +95,31 @@ def test_offer_words_missing_from_profile_are_sent_as_forbidden(gemini):
         assert "PALABRAS PROHIBIDAS" in prompt and "databricks" in prompt
 
 
+def test_experiences_prompt_includes_original_source_as_truth(gemini):
+    gemini["responses"] = [PROFILE_OK(), EXPERIENCES_OK()]
+    groq_version = [{**EXPERIENCES[0], "descripcion": "Construí informes de incidentes."}]
+
+    polish.polish_with_gemini(SUMMARY, groq_version, [], PROFILE)
+
+    prompt = json.loads(gemini["requests"][1].data)["contents"][0]["parts"][0]["text"]
+    assert "Construí informes de incidentes." in prompt  # borrador de Groq
+    assert "mejorando un 28% las proyecciones" in prompt  # descripción original del perfil
+    assert '"herramientas"' in prompt
+
+
+def test_recommended_keywords_come_from_profile_and_offer_without_variant_flood():
+    profile = {"aptitudes": ["Inteligencia Artificial"], "software": ["Python", "Excel"],
+               "competencias": ["Modelos predictivos", "Modelos de regresión", "Modelos de clasificación",
+                                "Machine Learning"]}
+    offer = "Desarrollar modelos predictivos con Python. Machine Learning, regresión, clasificación e inteligencia artificial."
+
+    keywords = polish.recommended_keywords(profile, offer)
+
+    assert "Excel" not in keywords  # no está en la oferta
+    assert keywords[:3] == ["Modelos predictivos", "Python", "Machine Learning"]  # exactas primero
+    assert sum(item.startswith("Modelos") for item in keywords) <= 2
+
+
 def test_gemini_text_is_used_without_local_checks(gemini):
     # Aunque Gemini cambie el texto por completo, se usa: no hay control local.
     gemini["responses"] = [PROFILE_OK(), _gemini_ok({"experiencias": [{"indice": 0, "descripcion": "Texto distinto."}]})]

@@ -73,6 +73,35 @@ def shorten_by_sentences(text, max_words=110):
     return " ".join(kept).strip()
 
 
+def select_logros_for_cv(profile, offer_text, experiences):
+    """Logros destacados (mínimo 4, máximo 5): primero los que tienen relación con la oferta
+    y no repiten las experiencias mostradas; luego se completa con los demás logros del
+    perfil, empezando por los que menos repiten lo que ya dicen las experiencias."""
+    experience_text = re.sub(r"(\d)\s+%", r"\1%", " ".join(str(item.get("descripcion", "")) for item in experiences))
+    experience_terms = _significant_terms(experience_text)
+
+    def overlap(logro):
+        numbers = re.findall(r"\d+(?:[.,]\d+)?%", logro)
+        if numbers and all(number in experience_text for number in numbers):
+            return 1.0
+        terms = _significant_terms(logro)
+        return len(terms & experience_terms) / len(terms) if terms else 1.0
+
+    all_logros = [re.sub(r"(\d)\s+%", r"\1%", str(logro)).strip() for logro in profile.get("logros", [])]
+    fresh_logros = [logro for logro in all_logros if overlap(logro) < 0.6]
+    offer_words = {word.casefold() for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", offer_text or "")}
+    selected = [
+        logro for logro in select_relevant_logros({"logros": fresh_logros}, offer_text)
+        if any(word.casefold() in offer_words for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", logro))
+    ][:5]
+    for logro in sorted(all_logros, key=overlap):
+        if len(selected) >= 4:
+            break
+        if logro not in selected:
+            selected.append(logro)
+    return selected
+
+
 def select_relevant_logros(profile, offer_text, proposed=None):
     """Selecciona logros por coincidencia con la oferta, no por posición en el JSON."""
     source = profile.get("logros", [])
@@ -405,32 +434,7 @@ def adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies=Non
     adapted["nuevas_tecnologias"] = selected_new_technologies
     adapted["competencias"] = selected_competencies
 
-    # Logros destacados (mínimo 4, máximo 5): primero los que tienen relación con la oferta
-    # y no repiten la experiencia mostrada; luego se completa con los demás logros del perfil,
-    # empezando por los que menos repiten lo que ya dice la experiencia.
-    experience_text = " ".join(str(item.get("descripcion", "")) for item in adapted_experience)
-    experience_terms = _significant_terms(experience_text)
-
-    def overlap(logro):
-        numbers = re.findall(r"\d+(?:[.,]\d+)?%", logro)
-        if numbers and all(number in experience_text for number in numbers):
-            return 1.0
-        terms = _significant_terms(logro)
-        return len(terms & experience_terms) / len(terms) if terms else 1.0
-
-    all_logros = [re.sub(r"(\d)\s+%", r"\1%", str(logro)).strip() for logro in profile.get("logros", [])]
-    fresh_logros = [logro for logro in all_logros if overlap(logro) < 0.6]
-    offer_words = {word.casefold() for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", offer_text or "")}
-    selected_logros = [
-        logro for logro in select_relevant_logros({"logros": fresh_logros}, offer_text)
-        if any(word.casefold() in offer_words for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", logro))
-    ][:5]
-    for logro in sorted(all_logros, key=overlap):
-        if len(selected_logros) >= 4:
-            break
-        if logro not in selected_logros:
-            selected_logros.append(logro)
-    adapted["logros"] = selected_logros
+    adapted["logros"] = select_logros_for_cv(profile, offer_text, adapted_experience)
     adapted["experiencia"] = adapted_experience
     proposed_skills = {
         str(item).strip().casefold()
@@ -524,6 +528,9 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
         {**experience, "descripcion": description}
         for experience, description in zip(adapted["experiencia"], descriptions)
     ]
+    # Los logros se eligen otra vez con los textos finales de Gemini, para que no repitan
+    # lo que ahora dicen las experiencias.
+    adapted["logros"] = select_logros_for_cv(profile, offer_text, adapted["experiencia"])
     adapted.setdefault("reporte_adaptacion", {})["pulido_gemini"] = polish_report
     if polish_report.get("perfil") or polish_report.get("experiencias"):
         print(
