@@ -15,7 +15,7 @@
     "foto": null
   },
   "perfil_profesional": {
-    "resumen": "Científico de Datos e Ingeniero Eléctrico con especialización en Gerencia de Proyectos y formación en Ciencia de Datos. Más de 15 años de trayectoria integrando analítica avanzada, infraestructura tecnológica y optimización de procesos, con un enfoque consistente en generar resultados medibles y convertir datos complejos en información estratégica para la toma de decisiones. He liderado el desarrollo de modelos predictivos y de regresión orientados a la proyección de consumo energético y al establecimiento de metas de eficiencia, apoyando procesos de certificación ISO 50001. Diseñé soluciones de análisis de desgaste de flota orientadas al mantenimiento predictivo e implementé la automatización integral de informes de telemetría y operación mediante archivos Parquet, pipelines ETL y dashboards en Power BI. Complementé estas capacidades con herramientas interactivas en Streamlit para el análisis comparativo de demanda a partir de archivos GeoJSON, permitiendo calcular la distribución de pasajeros origen-destino por ruta y localidad. En el ámbito freelance he diseñado e implementado soluciones de Machine Learning, chatbots conversacionales, automatización de procesos, web scraping y pipelines ETL aplicadas a los sectores comercial, financiero y de salud. Desarrollé chatbots comerciales integrados con WhatsApp API, sistemas de agendamiento automatizado de citas médicas sincronizados con Google Calendar, y bots en Python integrados con MetaTrader 5 para el mercado Forex. Asimismo, implementé procesos de extracción y transformación de datos desde fuentes web. Esta experiencia se complementa con más de 13 años liderando proyectos de infraestructura y redes MT/BT en Enel, donde dirigí más de 20 proyectos bajo normatividad CREG y RETIE. En ese entorno desarrollé modelos predictivos de riesgo y un sistema de alertas tempranas de armónicos con Python y AWS. Mi enfoque combina rigor analítico, automatización y orientación a resultados, con la capacidad de traducir problemas de negocio en soluciones de datos escalables y de alto impacto."
+    "resumen": "Científico de Datos e Ingeniero Eléctrico con especialización en Gerencia de Proyectos y formación en Ciencia de Datos. Más de 15 años de trayectoria integrando analítica avanzada, infraestructura tecnológica y optimización de procesos, con un enfoque consistente en generar resultados medibles y convertir datos complejos en información estratégica para la toma de decisiones. He diseñado e implementado modelos predictivos y de regresión orientados a la proyección del consumo energético y al establecimiento de metas de eficiencia, en el marco de la implementación de la norma ISO 50001. Diseñé soluciones de análisis de desgaste de flota orientadas al mantenimiento predictivo e implementé la automatización integral de informes de telemetría y operación mediante archivos Parquet, pipelines ETL y dashboards en Power BI. Complementé estas capacidades con herramientas interactivas en Streamlit para el análisis comparativo de demanda a partir de archivos GeoJSON, permitiendo calcular la distribución de pasajeros origen-destino por ruta y localidad. En el ámbito freelance he diseñado e implementado soluciones de Inteligencia Artificial y Machine Learning, visión por computadora con YOLO, chatbots conversacionales, automatización de procesos, web scraping y pipelines ETL aplicadas a los sectores comercial, financiero y de salud. Desarrollé chatbots comerciales integrados con WhatsApp API, sistemas de agendamiento automatizado de citas médicas sincronizados con Google Calendar, y bots en Python integrados con MetaTrader 5 para el mercado Forex. Asimismo, implementé procesos de extracción y transformación de datos desde fuentes web. Esta experiencia se complementa con más de 13 años liderando proyectos de infraestructura y redes MT/BT en Enel, donde dirigí más de 20 proyectos bajo normatividad CREG y RETIE. En ese entorno desarrollé modelos predictivos de riesgo y un sistema de alertas tempranas de armónicos con Python y AWS. Mi enfoque combina rigor analítico, automatización y orientación a resultados, con la capacidad de traducir problemas de negocio en soluciones de datos escalables y de alto impacto."
   },
   "formacion": [
     {
@@ -45,7 +45,7 @@
       "fechas": "20 Jul 2025 – 15 Sep 2025",
       "sectores": ["Movilidad eléctrica", "Energía", "Operación de flota"],
       "responsabilidades": [
-        "Desarrollo de modelos predictivos y de regresión para consumo energético.",
+        "Diseño e implementación de un modelo de regresión lineal de consumo energético en la implementación de la norma ISO 50001.",
         "Construcción de informes automatizados sobre datos de telemetría y operación.",
         "Diseño de pipelines ETL desde APIs, Siesa, Excel y Parquet hacia PostgreSQL.",
         "Construcción de dashboards e indicadores operativos en Power BI.",
@@ -53,30 +53,31 @@
         "Desarrollo de herramienta en Streamlit para análisis comparativo de rutas del SITP."
       ],
       "proyectos": [
-        "Modelo predictivo de consumo energético para certificación ISO 50001.",
+        "Modelo de regresión lineal de consumo energético en la implementación de la norma ISO 50001.",
         "Informes automatizados de telemetría con archivos Parquet.",
         "Modelo de análisis de desgaste de flota.",
         "Herramienta en Streamlit para comparar rutas propias con el sistema SITP usando archivos GeoJSON."
       ],
-      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "Machine Learning", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA", "Streamlit", "GeoJSON"],
+      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "Machine Learning", "Inteligencia Artificial", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA", "Streamlit", "GeoJSON"],
       "logros": [
-        "Automatización del procesamiento de grandes volúmenes de telemetría con reducción del 80% en tiempo de generación de informes.",
-        "Generación de información accionable para consumo energético y operación de flota, logrando una mejora del 28% en la precisión de las proyecciones de consumo.",
-        "Insumo técnico para certificación ISO 50001 con reducción del 6% en desviaciones de consumo energético real vs. proyectado.",
-        "Desarrollo de una herramienta en Streamlit para comparar  rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas."
+        "Automatización del procesamiento de grandes volúmenes de telemetría con reducción del 80% en el tiempo dedicado a la generación de informes.",
+        "Modelo de análisis de desgaste de flota que mejoró en un 28% la precisión de las proyecciones de desgaste.",
+        "Diseño e implementación de un modelo de regresión lineal del consumo energético en el marco de la implementación de la norma ISO 50001; las medidas aplicadas a partir del modelo redujeron el consumo en un 6%.",
+        "Desarrollo de una herramienta en Streamlit para comparar rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas."
       ],
-      "descripcion": "Desarrollé e implementé modelos de análisis predictivo y regresión para caracterizar el consumo energético de una flota de buses eléctricos, generando el insumo técnico para la certificación ISO 50001 y logrando una reducción del 6% en las desviaciones de consumo real frente al proyectado. Construí informes automatizados a partir de grandes volúmenes de datos de telemetría y archivos Parquet, reduciendo en un 80% el tiempo de generación de reportes y mejorando en un 28% la precisión de las proyecciones de consumo. Diseñé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión predictiva del mantenimiento. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL, integrando los datos en dashboards interactivos de Power BI para la toma de decisiones operativas. Desarrollé una herramienta en Streamlit para comparar 5 rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda."
+      "descripcion": "Diseñé e implementé un modelo de regresión lineal del consumo energético de una flota de buses eléctricos, en el marco de la implementación de la norma ISO 50001. Las medidas aplicadas a partir de ese modelo redujeron el consumo energético en un 6%. Construí informes automatizados a partir de grandes volúmenes de datos de telemetría y archivos Parquet, reduciendo en un 80% el tiempo dedicado a la generación de reportes. Diseñé un modelo de análisis de desgaste de flota orientado a identificar patrones de comportamiento y apoyar la gestión predictiva del mantenimiento, mejorando en un 28% la precisión de las proyecciones de desgaste. Implementé pipelines ETL con Python para automatizar la extracción, transformación y carga de información desde APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL, integrando los datos en dashboards interactivos de Power BI para la toma de decisiones operativas. Desarrollé una herramienta en Streamlit para comparar 5 rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda."
     },
     {
       "empresa": "Consultor Freelance",
       "cargo": "Científico de Datos & Automatización",
       "fechas": "Sep 2023 – Jul 2025",
-      "sectores": ["Automatización comercial", "Mercados financieros", "Análisis deportivo", "Soluciones de datos"],
+      "sectores": ["Automatización comercial", "Mercados financieros", "Análisis deportivo", "Salud", "Soluciones de datos"],
       "responsabilidades": [
         "Diseño de soluciones de Ciencia de Datos, Machine Learning y automatización.",
-        "Desarrollo de chatbots de ventas con ManyChat y WhatsApp Business API.",
+        "Desarrollo de chatbots de ventas con n8n y WhatsApp Business API.",
         "Construcción de bots de análisis de mercados Forex integrados con MetaTrader 5.",
         "Desarrollo de modelos predictivos para análisis deportivo.",
+        "Desarrollo de un detector de placas de vehículos en imágenes con YOLO (modelos de clasificación y detección de objetos).",
         "Diseño de procesos ETL y web scraping.",
         "Despliegue de modelos ML, APIs y pipelines automatizados."
       ],
@@ -84,16 +85,18 @@
         "Chatbots de ventas y automatización comercial.",
         "Bots de análisis predictivo de mercados Forex con MetaTrader 5.",
         "Modelos predictivos aplicados a datos deportivos.",
+        "Detector de placas de vehículos en imágenes con YOLO.",
         "Procesos ETL y web scraping para fuentes web."
       ],
-      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "ManyChat", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión", "OpenAI", "Canvas", "Make", "Cloud", "GitHub Copilot", "Claude", "Hugging Face", "Agentes de IA"],
+      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "n8n", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión", "YOLO", "Visión por computadora", "Inteligencia Artificial", "OpenAI", "Canvas", "Make", "Cloud", "GitHub Copilot", "Claude", "Hugging Face", "Agentes de IA"],
       "logros": [
         "Chatbots comerciales integrados con WhatsApp API que lograron un incremento del 35% en la conversión de ventas y automatizaron la resolución del 70% de las preguntas frecuentes",
         "Sistema automatizado de agendamiento de citas médicas sincronizado con Google Calendar para clínicas",
-        "Despliegue de modelos ML en producción mediante APIs y pipelines, alcanzando una precisión del 82% en señales de trading y reducción del 40% en tiempo de procesamiento de datos de mercado.",
+        "Bots de análisis predictivo para mercados Forex integrados con MetaTrader 5, alcanzando una precisión del 82% en señales de trading.",
+        "Despliegue de modelos ML en producción mediante APIs y pipelines, y optimización de código en Python y Spark que redujo en un 40% el tiempo de procesamiento.",
         "Automatización de extracción, transformación y almacenamiento de datos web con reducción del 75% en tiempo de recolección manual de información."
       ],
-      "descripcion": "Diseñé e implementé soluciones de Ciencia de Datos, Machine Learning y automatización para diferentes necesidades de negocio. Desarrollé chatbots de ventas con ManyChat + WhatsApp Business API y lógica comercial avanzada en Python, creando flujos conversacionales que generaron +35% en tasas de conversión, reducción del 50% en costos de adquisición y automatización del 70% de preguntas frecuentes. Desarrollé bots para análisis de mercados financieros y Forex integrados con MetaTrader 5, utilizando modelos predictivos basados en árboles de regresión para analizar variables de mercado y generar señales de apoyo a la toma de decisiones. Construí modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning. Diseñé e implementé procesos ETL y web scraping para extraer, transformar, validar y almacenar información proveniente de diferentes fuentes web. Implementé modelos de Machine Learning en producción, APIs, pipelines automatizados y soluciones de procesamiento de datos, además de optimizar código en Python y Spark."
+      "descripcion": "Diseñé e implementé soluciones de Ciencia de Datos, Machine Learning y automatización para diferentes necesidades de negocio. Desarrollé chatbots de ventas con n8n y WhatsApp Business API y lógica comercial avanzada en Python, creando flujos conversacionales que generaron +35% en tasas de conversión, reducción del 50% en costos de adquisición y automatización del 70% de preguntas frecuentes. Desarrollé bots para análisis de mercados financieros y Forex integrados con MetaTrader 5, utilizando modelos predictivos basados en árboles de regresión para analizar variables de mercado y generar señales de apoyo a la toma de decisiones, con una precisión del 82% en las señales de trading. Construí modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning. Desarrollé un detector de placas de vehículos en imágenes con YOLO, aplicando modelos de clasificación y detección de objetos. Diseñé e implementé procesos ETL y web scraping para extraer, transformar, validar y almacenar información proveniente de diferentes fuentes web. Implementé modelos de Machine Learning en producción, APIs, pipelines automatizados y soluciones de procesamiento de datos, además de optimizar código en Python y Spark, reduciendo en un 40% el tiempo de procesamiento."
     },
     {
       "empresa": "Enel",
@@ -138,6 +141,11 @@
     "Spark",
     "Pandas / Scikit-learn",
     "Machine Learning",
+    "Inteligencia Artificial",
+    "Modelos de clasificación",
+    "Visión por computadora",
+    "YOLO",
+    "n8n",
     "ETL",
     "Automatización de procesos",
     "Siesa",
@@ -184,6 +192,7 @@
     "Seguridad & HSEQ"
   ],
   "aptitudes": [
+    "Inteligencia Artificial",
     "Gestión de Proyectos",
     "Análisis de Datos / ML",
     "Chatbots & Automatización",
@@ -209,6 +218,7 @@
     "Power BI",
     "Pandas / Scikit-learn",
     "Spark",
+    "YOLO",
     "n8n / WhatsApp Business API",
     "MetaTrader 5",
     "AWS",
@@ -240,8 +250,11 @@
     "Agentes de IA"
   ],
   "competencias": [
+    "Inteligencia Artificial",
     "Modelos predictivos",
     "Modelos de regresión",
+    "Modelos de clasificación",
+    "Visión por computadora",
     "Machine Learning",
     "ETL",
     "Pipelines de datos",
@@ -257,7 +270,6 @@
     "Data Science"
   ],
   "certificaciones": [
-    "ISO 50001",
     "Python Intermedio",
     "Business Intelligence con Power BI",
     "Fundamentos de Bases de Datos"
@@ -278,13 +290,13 @@
     "Música"
   ],
   "logros": [
-    "Modelo de regresión lineal de consumo energético de buses eléctricos orientado a la certificación ISO 50001 en Green Movil, logrando una reducción del 6% del consumo real vs. proyectado.",
+    "Diseño e implementación de un modelo de regresión lineal del consumo energético de buses eléctricos en el marco de la implementación de la norma ISO 50001 en Green Movil; las medidas aplicadas a partir del modelo redujeron el consumo en un 6%.",
     "Construcción de informes automatizados de consumo energético utilizando grandes volúmenes de datos de telemetría y archivos Parquet, con reducción del 80% en tiempo de generación de reportes.",
-    "Desarrollo de un modelo de análisis de desgaste de flota para apoyar la identificación de patrones y la gestión predictiva del mantenimiento.",
+    "Desarrollo de un modelo de análisis de desgaste de flota para apoyar la identificación de patrones y la gestión predictiva del mantenimiento, mejorando en un 28% la precisión de las proyecciones de desgaste.",
     "Pipelines ETL automatizados con Python que unificaron APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL y Power BI, reduciendo el tiempo de integración de datos en un 70%.",
     "Construcción de dashboards interactivos en Power BI para seguimiento de consumo energético, operación de flota e indicadores de desempeño, permitiendo una toma de decisiones 60% más rápida.",
-    "Desarrollo de una herramienta en Streamlit para comparar  rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",
-    "Chatbots de ventas con ManyChat + WhatsApp API: +35 % de conversión, -50 % en costo de adquisición y 70 % de preguntas frecuentes automatizadas.",
+    "Desarrollo de una herramienta en Streamlit para comparar rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",
+    "Chatbots de ventas con n8n y WhatsApp Business API: +35 % de conversión, -50 % en costo de adquisición y 70 % de preguntas frecuentes automatizadas.",
     "Desarrollo de bots para análisis predictivo de mercados Forex utilizando Python, árboles de regresión y plataforma MetaTrader 5, alcanzando una precisión del 82% en señales de trading.",
     "Desarrollo de modelos de análisis predictivo para apuestas deportivas utilizando Python y técnicas de Machine Learning, con una mejora del 25% en la tasa de aciertos respecto a modelos baseline.",
     "Implementación de procesos ETL y web scraping para extracción, transformación y almacenamiento automatizado de información desde fuentes web, reduciendo el tiempo de recolección manual en un 75%.",
@@ -300,7 +312,7 @@
   "proyectos": [
     {
       "nombre": "Automatización de análisis de consumo energético de flota eléctrica",
-      "descripcion": "Construcción de pipelines y procesos automatizados para procesar grandes volúmenes de datos de telemetría, incluyendo archivos Parquet, generar informes de consumo energético y apoyar el análisis requerido para ISO 50001.",
+      "descripcion": "Construcción de pipelines y procesos automatizados para procesar grandes volúmenes de datos de telemetría, incluyendo archivos Parquet, generar informes de consumo energético y apoyar la implementación de la norma ISO 50001.",
       "tecnologias": [
         "Python",
         "Pandas",
@@ -324,7 +336,7 @@
     },
     {
       "nombre": "Herramienta en Streamlit para análisis comparativo de rutas SITP",
-      "descripcion": "Desarrollo de una herramienta en Streamlit para comparar  rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",
+      "descripcion": "Desarrollo de una herramienta en Streamlit para comparar rutas de la empresa con el resto del sistema SITP, procesando archivos GeoJSON para calcular el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",
       "tecnologias": [
         "Python",
         "Streamlit",
@@ -356,6 +368,16 @@
       ]
     },
     {
+      "nombre": "Detector de placas de vehículos con YOLO",
+      "descripcion": "Desarrollo de un detector de placas de vehículos en imágenes con YOLO, aplicando modelos de clasificación y detección de objetos.",
+      "tecnologias": [
+        "Python",
+        "YOLO",
+        "Visión por computadora",
+        "Modelos de clasificación"
+      ]
+    },
+    {
       "nombre": "ETL y Web Scraping",
       "descripcion": "Diseño e implementación de procesos automatizados para extracción de información mediante web scraping, transformación, validación y almacenamiento estructurado de datos provenientes de diferentes fuentes web.",
       "tecnologias": [
@@ -369,10 +391,10 @@
     },
     {
       "nombre": "Chatbots de ventas y automatización comercial",
-      "descripcion": "Diseño e implementación de chatbots de ventas integrados con ManyChat y WhatsApp Business API, incorporando lógica comercial en Python y automatización de preguntas frecuentes y procesos de atención.",
+      "descripcion": "Diseño e implementación de chatbots de ventas integrados con n8n y WhatsApp Business API, incorporando lógica comercial en Python y automatización de preguntas frecuentes y procesos de atención.",
       "tecnologias": [
         "Python",
-        "ManyChat",
+        "n8n",
         "WhatsApp Business API",
         "Chatbots",
         "Automatización"
