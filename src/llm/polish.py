@@ -194,7 +194,7 @@ def recommended_keywords(profile, offer_text, limit=7):
     offer_stems = _stems_of(offer_text, _ECHO_STEM)
     candidates = list(dict.fromkeys(
         str(item).strip()
-        for key in ("aptitudes", "competencias", "software")
+        for key in ("aptitudes", "competencias", "software", "habilidades")
         for item in profile.get(key, []) if str(item).strip()
     ))
     ranked = []
