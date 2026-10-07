@@ -13,7 +13,9 @@ from src.llm.llm import (
     analyze_offer_and_profile,
     offer_requirements,
     summary_is_factual,
+    _ECHO_STEM,
     _significant_terms,
+    _stem,
     _stems_of,
 )
 from src.llm.polish import polish_with_gemini
@@ -79,15 +81,25 @@ def select_logros_for_cv(profile, offer_text, experiences):
     perfil, empezando por los que menos repiten lo que ya dicen las experiencias."""
     experience_text = re.sub(r"(\d)\s+%", r"\1%", " ".join(str(item.get("descripcion", "")) for item in experiences))
     experience_terms = _significant_terms(experience_text)
+    experience_stems = _stems_of(experience_text, _ECHO_STEM)
+    all_logros = [re.sub(r"(\d)\s+%", r"\1%", str(logro)).strip() for logro in profile.get("logros", [])]
+    # Palabras exclusivas de cada logro (no aparecen en ningún otro): nombran su proyecto.
+    stems_per_logro = [{_stem(term, _ECHO_STEM) for term in _significant_terms(logro)} for logro in all_logros]
+    exclusive = {
+        logro: {stem for stem in stems if sum(stem in other for other in stems_per_logro) == 1}
+        for logro, stems in zip(all_logros, stems_per_logro)
+    }
 
     def overlap(logro):
         numbers = re.findall(r"\d+(?:[.,]\d+)?%", logro)
         if numbers and all(number in experience_text for number in numbers):
             return 1.0
+        # Mismo proyecto ya contado en una experiencia (p. ej., "apuestas deportivas").
+        if len(exclusive.get(logro, set()) & experience_stems) >= 2:
+            return 1.0
         terms = _significant_terms(logro)
         return len(terms & experience_terms) / len(terms) if terms else 1.0
 
-    all_logros = [re.sub(r"(\d)\s+%", r"\1%", str(logro)).strip() for logro in profile.get("logros", [])]
     fresh_logros = [logro for logro in all_logros if overlap(logro) < 0.6]
     offer_words = {word.casefold() for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", offer_text or "")}
     selected = [
@@ -492,6 +504,10 @@ def adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies=Non
     return adapted
 
 
+class GeminiIncomplete(RuntimeError):
+    """Gemini no redactó el perfil y todas las experiencias; no se genera el PDF."""
+
+
 def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=None, output_dir=None):
     root = Path(__file__).resolve().parent.parent
     if offers_dir is None:
@@ -540,6 +556,13 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
         )
     for notice in polish_report.get("avisos", []):
         print(f"AVISO Gemini: {notice}", file=sys.stderr)
+    # El texto final siempre debe ser de Gemini: sin él no se genera un CV redactado por Groq.
+    if polish_report.get("estado") != "desactivado" and not polish_report.get("completo"):
+        raise GeminiIncomplete(
+            "Gemini no redactó todo el CV; no se generó el PDF para no dejar texto de Groq. "
+            "Intenta más tarde (el cupo gratuito se reinicia a las 2:00 a. m. hora de Colombia). "
+            "Detalle: " + " | ".join(polish_report.get("avisos", []))
+        )
     analysis["bloques_adaptados"] = adapted.get("bloques_llm", 0)
     analysis["reporte_adaptacion"] = adapted.get("reporte_adaptacion", {})
 
@@ -606,7 +629,11 @@ if __name__ == "__main__":
     if not offers:
         print("No se encontraron ofertas en la carpeta ofertas/.")
     else:
-        generated_items = generate_all_cv_for_offers(str(offers_dir), str(profile_path), str(output_dir))
+        try:
+            generated_items = generate_all_cv_for_offers(str(offers_dir), str(profile_path), str(output_dir))
+        except GeminiIncomplete as exc:
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(1)
         for item in generated_items:
             analysis = item["analysis"]
             print(json.dumps({

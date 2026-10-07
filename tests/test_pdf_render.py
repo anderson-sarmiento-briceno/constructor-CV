@@ -312,3 +312,21 @@ def test_adaptation_report_tracks_sources_and_priority_percentages(monkeypatch):
     assert report["totales"]["porcentaje_bloques_llm_aceptados"] == 50
     assert "coincidencia_final" not in report["experiencias"][0]
     assert len(report["habilidades"]) == 5
+
+
+def test_logros_skip_a_project_already_told_in_the_experiences():
+    from src.engine import select_logros_for_cv
+
+    profile = {"logros": [
+        "Modelos de análisis predictivo para apuestas deportivas con Python, mejorando un 25% la tasa de aciertos.",
+        "Informes automatizados de consumo energético con telemetría, reduciendo un 80% el tiempo de generación.",
+        "Dashboards de consumo energético en Power BI para la operación de la flota.",
+        "Alertas tempranas de armónicos con Python y AWS, reduciendo un 55% el tiempo de detección.",
+        "Atención de fallas críticas con Tableau, disminuyendo un 35% el tiempo de respuesta.",
+    ]}
+    experiences = [{"descripcion": "Construí modelos de clasificación para apuestas deportivas con Python."}]
+
+    selected = select_logros_for_cv(profile, "Python, Power BI, Tableau, análisis predictivo", experiences)
+
+    assert not any("apuestas" in logro for logro in selected[:4])
+    assert any("Informes automatizados" in logro for logro in selected)

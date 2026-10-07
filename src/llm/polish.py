@@ -45,6 +45,7 @@ _SHARED_RULES = """PRESERVACIÓN RIGUROSA:
 - PALABRAS PROHIBIDAS: nunca uses las palabras de la lista que se te entrega (aparecen en la oferta pero no en mi perfil), ni sus variantes. Las prioridades de la oferta solo indican qué destacar primero.
 - Ortografía impecable, incluidos los pretéritos ("optimicé", "automaticé", "organicé"). No uses punto y coma para encadenar ideas.
 - Copia los nombres propios, siglas y nombres de herramientas exactamente como aparecen, incluidos sus símbolos: "PSS/E", "MT/BT", "SQL / PostgreSQL", "ISO 50001". Nunca cambies una barra "/" por "y".
+- No traduzcas los términos técnicos que el material deja en inglés: "pipelines" nunca es "tuberías", "dashboards" nunca es "tableros de mando", "feature engineering" se queda igual o como "ingeniería de variables" solo si así aparece.
 
 Responde solo con el JSON pedido."""
 
@@ -79,6 +80,7 @@ REESTRUCTURA:
 - Usa conectores de causa-efecto SOLO cuando el original ya establece esa relación. Nunca inventes que una acción causó un resultado.
 - Recibes todas las experiencias juntas: coordínalas. Una práctica común a varias experiencias (por ejemplo, análisis exploratorio, feature engineering o validación de modelos) se menciona de forma explícita en UNA sola experiencia, la más relevante para la oferta; en las demás no repitas esa frase. Tampoco repitas entre experiencias la misma estructura de oración ni el mismo verbo inicial.
 - Cada experiencia trae "texto_actual" (el borrador a reescribir) y "fuente" (mi perfil maestro, que es la verdad). Si el borrador omitió una herramienta, acción o cifra de la fuente que sea relevante para la oferta, recupérala; si la cambió (por ejemplo, "incidentes" donde la fuente dice "accidentes", o una cifra unida a otra acción), corrígela según la fuente. Usa SOLO hechos de esa misma experiencia: nunca tomes datos de otra.
+- No cierres una descripción con una enumeración de áreas o disciplinas ("Integré ingeniería eléctrica, gestión de proyectos, análisis de datos y automatización"): termina con un hecho concreto de la fuente.
 - Primera persona del singular y tiempo pasado.
 - Conserva sin alteración todas las tecnologías, herramientas, normas y estándares, y todas las cifras y métricas, cada una unida al mismo resultado y a la misma acción que en el original. No elimines ninguna.
 - Cada descripción es UN SOLO PÁRRAFO continuo, sin listas ni títulos, de entre 80 y 130 palabras. El límite de 130 palabras es estricto: la fuente tiene más hechos de los que caben, así que elige los más relevantes para la oferta y deja fuera el resto. Si recuperas algo de la fuente, quita a cambio lo menos relevante. No escribas el nombre de la empresa, el cargo ni las fechas: ya aparecen en el encabezado.
@@ -126,15 +128,19 @@ def _error_message(exc):
         return ""
 
 
-def _call_gemini(system, user, model, key, retries=3):
+def _call_gemini(system, user, model, key, retries=3, schema=None):
     """Una llamada a Gemini en modo JSON. Reintenta solo si el modelo está saturado (503).
 
-    Temperatura 0.7 y top_p 0.9 para que reformule de verdad la sintaxis.
+    Temperatura 0.7 y top_p 0.9 para que reformule de verdad la sintaxis. Con `schema`, la
+    API obliga al modelo a responder exactamente con esos campos y tipos.
     """
+    config = {"temperature": 0.7, "topP": 0.9, "responseMimeType": "application/json"}
+    if schema:
+        config["responseSchema"] = schema
     body = json.dumps({
         "systemInstruction": {"parts": [{"text": system}]},
         "contents": [{"role": "user", "parts": [{"text": user}]}],
-        "generationConfig": {"temperature": 0.7, "topP": 0.9, "responseMimeType": "application/json"},
+        "generationConfig": config,
     }).encode("utf-8")
     headers = {"x-goog-api-key": key, "Content-Type": "application/json", "User-Agent": "cv-dinamico/1.0"}
     timeout = float(os.getenv("GEMINI_TIMEOUT", "").strip() or 90)
@@ -163,9 +169,20 @@ def _call_gemini(system, user, model, key, retries=3):
     raise GeminiUnavailable("sigue saturado tras los reintentos")
 
 
-def _ask_gemini(system, user, models=None):
+def _shape(result):
+    """Describe la forma de una respuesta (solo nombres de claves, nunca el texto)."""
+    if isinstance(result, dict):
+        return "objeto con claves: " + (", ".join(list(result)[:8]) or "ninguna")
+    if isinstance(result, list):
+        return f"lista de {len(result)} elementos"
+    return type(result).__name__
+
+
+def _ask_gemini(system, user, models=None, schema=None, parse=None):
     """Prueba cada modelo (por defecto el principal y luego el de respaldo) con cada clave.
 
+    `parse` convierte la respuesta en el resultado útil; si queda vacío, esa respuesta
+    cuenta como fallo y se prueba la siguiente combinación (nunca se cae a Groq en silencio).
     Devuelve (resultado, "modelo con clave N", fallos previos) o lanza GeminiUnavailable
     con todos los motivos.
     """
@@ -173,10 +190,88 @@ def _ask_gemini(system, user, models=None):
     for model in models or gemini_models():
         for label, key in _gemini_keys():
             try:
-                return _call_gemini(system, user, model, key), f"{model} con {label}", failures
+                result = _call_gemini(system, user, model, key, schema=schema)
             except GeminiUnavailable as exc:
                 failures.append(f"{model} con {label}: {exc}")
+                continue
+            parsed = parse(result) if parse else result
+            if parsed:
+                return parsed, f"{model} con {label}", failures
+            failures.append(f"{model} con {label}: respuesta sin el formato esperado ({_shape(result)})")
     raise GeminiUnavailable(" | ".join(failures) or "no hay claves de Gemini configuradas")
+
+
+# Esquemas que la API de Gemini hace cumplir: el modelo no puede cambiar nombres ni tipos.
+_SUMMARY_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {"resumen": {"type": "STRING"}},
+    "required": ["resumen"],
+}
+_EXPERIENCES_SCHEMA = {
+    "type": "OBJECT",
+    "properties": {"experiencias": {
+        "type": "ARRAY",
+        "items": {
+            "type": "OBJECT",
+            "properties": {"indice": {"type": "INTEGER"}, "descripcion": {"type": "STRING"}},
+            "required": ["indice", "descripcion"],
+        },
+    }},
+    "required": ["experiencias"],
+}
+
+# Lectura flexible, de respaldo por si algún modelo no respeta del todo el esquema.
+_TEXT_KEYS = ("descripcion", "descripción", "texto", "description", "text")
+_SUMMARY_KEYS = ("resumen", "perfil", "perfil_profesional", "summary", "texto")
+
+
+def _unwrap(result):
+    """Quita la lista que a veces envuelve al objeto: [{"resumen": ...}] -> {"resumen": ...}."""
+    if isinstance(result, list) and len(result) == 1 and isinstance(result[0], dict):
+        return result[0]
+    return result
+
+
+def _parse_summary(result):
+    result = _unwrap(result)
+    if isinstance(result, str):
+        return result.strip()
+    if isinstance(result, dict):
+        for key in _SUMMARY_KEYS:
+            if isinstance(result.get(key), str) and result[key].strip():
+                return result[key].strip()
+    return ""
+
+
+def _parse_experiences(result, indices):
+    """{indice: descripción} para los índices pedidos, aceptando variaciones de forma (índice
+    como texto, otros nombres de campo, lista sin envolver, sin índices: se empareja por
+    orden). Si falta alguno de los pedidos devuelve {} para que se pruebe otra combinación."""
+    items = result
+    if isinstance(result, list) and len(result) == 1 and isinstance(result[0], dict) \
+            and isinstance(result[0].get("experiencias"), list):
+        result = result[0]  # [{"experiencias": [...]}]
+    if isinstance(result, dict):
+        items = result.get("experiencias")
+        if not isinstance(items, list):
+            items = next((value for value in result.values() if isinstance(value, list)), None)
+    found = {}
+    for position, item in enumerate(items if isinstance(items, list) else []):
+        index, text = None, ""
+        if isinstance(item, str):
+            text = item
+        elif isinstance(item, dict):
+            text = next((str(item[key]) for key in _TEXT_KEYS if str(item.get(key) or "").strip()), "")
+            raw = next((item[key] for key in ("indice", "índice", "index") if key in item), None)
+            try:
+                index = int(raw)
+            except (TypeError, ValueError):
+                index = None
+        if index not in indices and position < len(indices):
+            index = indices[position]
+        if text.strip() and index in indices:
+            found[index] = text.strip()
+    return found if set(found) == set(indices) else {}
 
 
 def _forbidden_line(forbidden):
@@ -235,8 +330,7 @@ PALABRAS CLAVE RECOMENDADAS (están en mi perfil y en la oferta): {", ".join(rec
 
 MATERIAL:
 {_compact(material)}"""
-    result, used, failures = _ask_gemini(_PROFILE_SYSTEM, prompt)
-    return str(result.get("resumen", "")).strip() if isinstance(result, dict) else "", used, failures
+    return _ask_gemini(_PROFILE_SYSTEM, prompt, schema=_SUMMARY_SCHEMA, parse=_parse_summary)
 
 
 def _source_experience(item, profile):
@@ -261,13 +355,9 @@ PRIORIDADES DE LA OFERTA (solo para decidir qué destacar primero): {"; ".join(s
 
 EXPERIENCIAS (texto_actual = borrador a reescribir; fuente = mi perfil maestro, la verdad):
 {json.dumps(blocks, ensure_ascii=False)}"""
-    result, used, failures = _ask_gemini(_EXPERIENCE_SYSTEM, prompt)
-    proposals = {}
-    items = result.get("experiencias") if isinstance(result, dict) else None
-    for item in items if isinstance(items, list) else []:
-        if isinstance(item, dict) and isinstance(item.get("indice"), int):
-            proposals[item["indice"]] = str(item.get("descripcion", "")).strip()
-    return proposals, used, failures
+    indices = [block["indice"] for block in blocks]
+    return _ask_gemini(_EXPERIENCE_SYSTEM, prompt, schema=_EXPERIENCES_SCHEMA,
+                       parse=lambda result: _parse_experiences(result, indices))
 
 
 # ---------------------------------------------------------------------------
@@ -342,13 +432,9 @@ Devuelve JSON con esta forma:
 DESCRIPCIONES CON PROBLEMAS (fuente = mi perfil maestro, la verdad):
 {json.dumps(flagged, ensure_ascii=False)}"""
     models = list(dict.fromkeys(reversed(gemini_models())))
-    result, used, failures = _ask_gemini(_EXPERIENCE_SYSTEM, prompt, models)
-    corrected = {}
-    items = result.get("experiencias") if isinstance(result, dict) else None
-    for item in items if isinstance(items, list) else []:
-        if isinstance(item, dict) and isinstance(item.get("indice"), int) and str(item.get("descripcion", "")).strip():
-            corrected[item["indice"]] = str(item["descripcion"]).strip()
-    return corrected, used, failures
+    indices = [block["indice"] for block in flagged]
+    return _ask_gemini(_EXPERIENCE_SYSTEM, prompt, models, schema=_EXPERIENCES_SCHEMA,
+                       parse=lambda result: _parse_experiences(result, indices))
 
 
 def _review_and_correct(experiences, final_descriptions, proposals, profile, report):
@@ -440,4 +526,6 @@ def polish_with_gemini(summary, experiences, priorities, profile, offer_text=Non
 
     used_any = bool(report["perfil"] or report["experiencias"])
     report["estado"] = "aplicado" if used_any else "no_disponible"
+    # Completo solo si Gemini redactó el perfil y todas las experiencias.
+    report["completo"] = bool(report["perfil"] and report["experiencias"])
     return final_summary, final_descriptions, report

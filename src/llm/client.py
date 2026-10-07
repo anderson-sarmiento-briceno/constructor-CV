@@ -71,6 +71,10 @@ def _wait_seconds(exc, attempt, detail=""):
     if from_message is not None:
         candidates.append(from_message + 2)
     wait = max(candidates) if candidates else 5 * 2 ** attempt
+    # Si el límite por minuto se repite, la espera que sugiere Groq se queda corta: se
+    # alarga (20, 40, 60 s) hasta que se libere el minuto completo.
+    if getattr(exc, "code", None) == 429 and attempt >= 1:
+        wait = max(wait, 20 * attempt)
     return min(max(wait, 1), _MAX_WAIT_SECONDS)
 
 

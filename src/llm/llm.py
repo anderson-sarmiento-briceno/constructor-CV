@@ -438,20 +438,12 @@ def _experience_for_prompt(experience):
     return {key: experience[key] for key in _EXPERIENCE_PROMPT_FIELDS if experience.get(key)}
 
 
-def _experience_proposals(result):
-    """{indice: descripcion_adaptada} a partir de la respuesta del modelo."""
-    items = result.get("experiencias") if isinstance(result.get("experiencias"), list) else []
-    return {
-        item["indice"]: str(item.get("descripcion_adaptada", "")).strip()
-        for item in items
-        if isinstance(item, dict) and isinstance(item.get("indice"), int)
-    }
-
-
 def adapt_experiences_and_skills(profile, experiences, offer_text, forbidden_companies=None):
-    """Una sola llamada: reescribe cada experiencia real y selecciona habilidades.
+    """Una llamada por experiencia (respuestas cortas: menos errores de JSON y ninguna
+    experiencia arrastra a las demás) y otra para seleccionar habilidades.
 
-    Cada experiencia se valida por separado; si se rechaza, vuelve a su texto original.
+    Cada experiencia se envía completa y se valida por separado; si se rechaza, se
+    reintenta una vez y, si sigue mal, vuelve a su texto original.
     """
     forbidden_companies = forbidden_companies or []
     skills_source = {
@@ -460,42 +452,54 @@ def adapt_experiences_and_skills(profile, experiences, offer_text, forbidden_com
         "nuevas_tecnologias": profile.get("nuevas_tecnologias", []),
         "competencias": profile.get("competencias", []),
     }
-    # A Groq solo se le envían los campos que no se repiten entre sí (las responsabilidades y
-    # los proyectos repiten lo que dice la descripción): así la llamada cabe holgada en el
-    # límite gratuito de tokens por minuto. La validación sigue usando la experiencia completa.
-    source_experiences = [
-        {"indice": index, **_experience_for_prompt(experience)} for index, experience in enumerate(experiences)
-    ]
-    prompt = f"""TAREA: adapta cada una de mis experiencias a la oferta y selecciona mis habilidades más relevantes para ella.
+    companies_line = f"ORGANIZACIONES DE LA OFERTA (prohibido escribirlas): {', '.join(forbidden_companies) or 'ninguna detectada'}"
+    offer_block = (offer_text or "")[:_OFFER_CHARS]
+
+    # Responsabilidades y proyectos no se envían porque repiten lo que dice la descripción;
+    # la validación sigue usando la experiencia completa.
+    proposals, responded, errors = {}, {}, {}
+    for index, experience in enumerate(experiences):
+        prompt = f"""TAREA: adapta esta experiencia mía a la oferta.
 
 Devuelve JSON con esta forma:
-{{"experiencias":[{{"indice":0,"descripcion_adaptada":"..."}}],"aptitudes_clave":[],"herramientas":[],"nuevas_tecnologias":[],"competencias":[]}}
+{{"descripcion_adaptada":"..."}}
 
-EXPERIENCIAS: una entrada por cada experiencia fuente, con el mismo "indice".
 - Entre 80 y 130 palabras, como descripción propia y directa de lo que hice.
-- Usa solo los hechos de ESA experiencia (no mezcles datos entre experiencias). Conserva literalmente empresa, herramientas, proyectos y métricas.
+- Usa solo los hechos de esta experiencia. Conserva literalmente empresa, herramientas, proyectos y métricas.
 - Usa el vocabulario de la experiencia fuente: no añadas técnicas ni palabras de la oferta que no estén escritas en ella (por ejemplo, no escribas "feature engineering", "insights" o "clientes" si la fuente no los menciona).
 - Destaca primero lo más pertinente para la oferta, con un hilo lógico, y cierra con una idea completa.
 - Tiempo verbal: pasado si la experiencia terminó ("dirigí", "desarrollé", "implementé"); presente solo si sus fechas dicen que sigue vigente. No mezcles tiempos.
 
-HABILIDADES: copia nombres exactos de la categoría correspondiente, sin reformularlos, sin duplicados y ordenados por relevancia para la oferta.
+{companies_line}
+
+OFERTA:
+{offer_block}
+
+EXPERIENCIA FUENTE:
+{_compact(_experience_for_prompt(experience))}"""
+        result = _ask(prompt)
+        responded[index] = bool(result)
+        errors[index] = _LAST_LLM_ERROR
+        proposals[index] = str(result.get("descripcion_adaptada", "")).strip()
+
+    skills_prompt = f"""TAREA: selecciona mis habilidades más relevantes para la oferta.
+
+Devuelve JSON con esta forma:
+{{"aptitudes_clave":[],"herramientas":[],"nuevas_tecnologias":[],"competencias":[]}}
+
+Copia nombres exactos de la categoría correspondiente, sin reformularlos, sin duplicados y ordenados por relevancia para la oferta.
 - aptitudes_clave: máximo 7, de "aptitudes".
 - herramientas: máximo 12, de "software".
 - nuevas_tecnologias: máximo 8, de "nuevas_tecnologias".
 - competencias: máximo 12, de "competencias".
 
-ORGANIZACIONES DE LA OFERTA (prohibido escribirlas): {", ".join(forbidden_companies) or "ninguna detectada"}
-
 OFERTA:
-{(offer_text or "")[:_OFFER_CHARS]}
-
-EXPERIENCIAS FUENTE:
-{_compact(source_experiences)}
+{offer_block}
 
 HABILIDADES:
 {_compact(skills_source)}"""
-    result = _ask(prompt)
-    proposals = _experience_proposals(result)
+    skills_result = _ask(skills_prompt)
+
     def issues_of(text, experience):
         return _experience_issues(text, experience, offer_text, forbidden_companies, profile)
 
@@ -504,10 +508,9 @@ HABILIDADES:
         for index, experience in enumerate(experiences)
     }
 
-    # Reintento de cada experiencia rechazada en su propia llamada (juntas, el modelo
-    # mezclaba cifras entre experiencias): texto rechazado, motivos y palabras prohibidas,
-    # sin reenviar la oferta ni las habilidades.
-    rejected = [index for index, issues in reviews.items() if issues] if result else []
+    # Reintento de cada experiencia rechazada (solo si el modelo respondió): texto
+    # rechazado, motivos y palabras prohibidas, sin reenviar la oferta.
+    rejected = [index for index, issues in reviews.items() if issues and responded[index]]
     retry_proposals = {}
     for index in rejected:
         forbidden_terms = sorted({
@@ -561,20 +564,20 @@ EXPERIENCIA FUENTE:
         )
         diagnostics.append({
             "llm_consultado": True,
-            "llm_respondio": bool(result),
+            "llm_respondio": responded[index],
             "origen": origin,
             "intentos": attempts,
-            "motivo_fallback": issues if result else [_LAST_LLM_ERROR or "el modelo no respondió"],
+            "motivo_fallback": issues if responded[index] else [errors[index] or "el modelo no respondió"],
             "texto_propuesto": proposed,
         })
 
     selections = {
-        key: result.get(key, []) if isinstance(result.get(key, []), list) else []
+        key: skills_result.get(key, []) if isinstance(skills_result.get(key, []), list) else []
         for key in ("aptitudes_clave", "herramientas", "nuevas_tecnologias", "competencias")
     }
     skills_diagnostic = {
         "llm_consultado": True,
-        "llm_respondio": bool(result),
+        "llm_respondio": bool(skills_result),
         "elementos_habilidad_propuestos": sum(len(items) for items in selections.values()),
     }
     return {

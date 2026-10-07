@@ -132,6 +132,15 @@ def test_client_429_waits_what_the_message_says_when_header_is_missing(fake_urlo
     assert 14 <= fake_urlopen["sleeps"][0] <= 15  # 12,6 s del mensaje + 2 s de margen
 
 
+def test_repeated_429_waits_longer_until_the_minute_frees_up(fake_urlopen):
+    # Groq sugiere 5,6 s cada vez, pero si se repite hay que esperar a que pase el minuto.
+    message = "Rate limit reached on tokens per minute (TPM). Please try again in 5.5875s."
+    fake_urlopen["responses"] = [_http_error(429, message=message)] * 4 + [_ok('{"f": 6}')]
+
+    assert client.chat("reglas", "tarea") == {"f": 6}
+    assert [round(wait) for wait in fake_urlopen["sleeps"]] == [8, 20, 40, 60]
+
+
 def test_wait_from_message_understands_minutes_and_milliseconds():
     assert client._wait_from_message("try again in 1m2.5s") == 62.5
     assert client._wait_from_message("try again in 450ms") == 0.45
@@ -178,7 +187,7 @@ def test_local_role_extraction_ignores_lowercase_phrases():
 
 
 def test_prompts_never_send_personal_data(fake_chat):
-    fake_chat["responses"] = [{}, {}]
+    fake_chat["responses"] = [{}, {}, {}]
 
     llm.analyze_offer_and_profile(OFFER, PROFILE)
     llm.adapt_experiences_and_skills(PROFILE, PROFILE["experiencia"], OFFER)
@@ -227,13 +236,14 @@ FIXED_EXPERIENCE = (
 def test_invented_experience_falls_back_to_original_text(fake_chat):
     experience = PROFILE["experiencia"][0]
     fake_chat["responses"] = [
-        {"experiencias": [{"indice": 0, "descripcion_adaptada": INVENTED_EXPERIENCE}], "herramientas": ["Python"]},
+        {"descripcion_adaptada": INVENTED_EXPERIENCE},
+        {"herramientas": ["Python"]},
         {"descripcion_adaptada": INVENTED_EXPERIENCE},
     ]
 
     result = llm.adapt_experiences_and_skills(PROFILE, [experience], OFFER, ["Banco Ejemplo"])
 
-    assert len(fake_chat["prompts"]) == 2
+    assert len(fake_chat["prompts"]) == 3  # experiencia + habilidades + reintento
     assert result["descripciones"] == [experience["descripcion"]]
     assert result["diagnosticos"][0]["origen"] == "fallback_local"
     assert result["diagnosticos"][0]["intentos"] == 2
@@ -244,13 +254,14 @@ def test_invented_experience_falls_back_to_original_text(fake_chat):
 def test_rejected_experience_retry_sends_forbidden_words_without_offer(fake_chat):
     experience = PROFILE["experiencia"][0]
     fake_chat["responses"] = [
-        {"experiencias": [{"indice": 0, "descripcion_adaptada": INVENTED_EXPERIENCE}]},
+        {"descripcion_adaptada": INVENTED_EXPERIENCE},
+        {},
         {"descripcion_adaptada": FIXED_EXPERIENCE},
     ]
 
     result = llm.adapt_experiences_and_skills(PROFILE, [experience], OFFER)
 
-    retry_prompt = fake_chat["prompts"][1]
+    retry_prompt = fake_chat["prompts"][2]
     assert "PALABRAS PROHIBIDAS" in retry_prompt and "databricks" in retry_prompt
     assert OFFER not in retry_prompt
     assert result["descripciones"] == [FIXED_EXPERIENCE]
@@ -368,9 +379,28 @@ def test_summary_with_only_style_issues_is_kept_after_retry(fake_chat):
 
 def test_accepted_experiences_make_no_retry(fake_chat):
     experience = PROFILE["experiencia"][0]
-    fake_chat["responses"] = [{"experiencias": [{"indice": 0, "descripcion_adaptada": FIXED_EXPERIENCE}]}]
+    fake_chat["responses"] = [{"descripcion_adaptada": FIXED_EXPERIENCE}, {}]
 
     result = llm.adapt_experiences_and_skills(PROFILE, [experience], OFFER)
 
-    assert len(fake_chat["prompts"]) == 1
+    assert len(fake_chat["prompts"]) == 2  # experiencia + habilidades
     assert result["diagnosticos"][0]["origen"] == "llm"
+
+
+def test_each_experience_goes_complete_in_its_own_call(fake_chat):
+    second = {"empresa": "Otra Empresa", "cargo": "Analista", "fechas": "2020 – 2022",
+              "descripcion": "Construí reportes en SQL y Power BI para el seguimiento de la operación diaria."}
+    experiences = [PROFILE["experiencia"][0], second]
+    fake_chat["responses"] = [llm.LLMError("Groq respondió HTTP 400"), {"descripcion_adaptada": FIXED_EXPERIENCE},
+                              {"herramientas": ["SQL"]}]
+
+    result = llm.adapt_experiences_and_skills(PROFILE, experiences, OFFER)
+
+    first_prompt, second_prompt, skills_prompt = fake_chat["prompts"]
+    assert PROFILE["experiencia"][0]["descripcion"] in first_prompt and "Otra Empresa" not in first_prompt
+    assert second["descripcion"] in second_prompt and "Green Mobil" not in second_prompt
+    assert "HABILIDADES" in skills_prompt
+    # La que falló no arrastra a la otra.
+    assert result["diagnosticos"][0]["motivo_fallback"] == ["Groq respondió HTTP 400"]
+    assert result["descripciones"][1] == FIXED_EXPERIENCE
+    assert result["habilidades"]["herramientas"] == ["SQL"]

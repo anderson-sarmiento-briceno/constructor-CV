@@ -206,6 +206,54 @@ def test_groq_texts_are_kept_and_warned_when_gemini_is_unavailable(gemini):
     assert any("Experiencias: Gemini no disponible" in notice for notice in report["avisos"])
 
 
+def test_requests_send_a_schema_that_forces_the_json_shape(gemini):
+    gemini["responses"] = [PROFILE_OK(), EXPERIENCES_OK()]
+
+    _, _, report = polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)
+
+    profile_config = json.loads(gemini["requests"][0].data)["generationConfig"]
+    experience_config = json.loads(gemini["requests"][1].data)["generationConfig"]
+    assert profile_config["responseSchema"]["required"] == ["resumen"]
+    item = experience_config["responseSchema"]["properties"]["experiencias"]["items"]
+    assert item["properties"]["indice"]["type"] == "INTEGER"
+    assert report["completo"] is True
+
+
+def test_variations_in_the_json_shape_are_still_read(gemini):
+    gemini["responses"] = [
+        _gemini_ok([{"perfil": NEW_SUMMARY}]),
+        _gemini_ok({"experiencias": [{"indice": "0", "texto": NEW_EXPERIENCE}]}),
+    ]
+
+    summary, descriptions, report = polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)
+
+    assert summary == NEW_SUMMARY and descriptions == [NEW_EXPERIENCE]
+    assert report["completo"] is True
+
+
+def test_unreadable_response_tries_next_key_instead_of_keeping_groq(gemini):
+    gemini["responses"] = [
+        PROFILE_OK(),
+        _gemini_ok({"otra_cosa": 1}),  # clave 1: formato ilegible
+        EXPERIENCES_OK(),  # clave 2
+    ]
+
+    _, descriptions, report = polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)
+
+    assert descriptions == [NEW_EXPERIENCE]
+    assert report["experiencias"] == f"{polish.DEFAULT_GEMINI_MODEL} con clave 2"
+    assert any("formato esperado" in failure and "otra_cosa" in failure for failure in report["intentos_fallidos"])
+
+
+def test_report_is_incomplete_when_experiences_stay_without_gemini(gemini):
+    gemini["responses"] = [PROFILE_OK()] + [_gemini_ok({"experiencias": []})] * 4
+
+    _, descriptions, report = polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)
+
+    assert report["completo"] is False
+    assert any("Experiencias: Gemini no disponible" in notice for notice in report["avisos"])
+
+
 def test_polish_is_skipped_when_disabled(monkeypatch):
     monkeypatch.setenv("GEMINI_POLISH", "0")
     summary, _, report = polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)
