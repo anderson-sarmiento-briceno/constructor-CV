@@ -398,8 +398,12 @@ def _review_experience(text, source, other_tools):
 
     for sentence in re.split(r"(?<=[.!?])\s+", text):
         metrics = set(re.findall(_PERCENT, sentence))
-        # Varias cifras en una oración solo si en la fuente también van juntas.
-        if len(metrics) > 1 and not any(all(metric in src for metric in metrics) for src in sentences_source):
+        # Varias cifras en una oración solo si en la fuente también van juntas, o si cada una
+        # va en su propia cláusula ("…, reduciendo un 75% X, y optimicé…, reduciendo un 40% Y"):
+        # que cada cifra siga unida a su acción lo revisa _misplaced_metric_issues.
+        own_clauses = all(len(set(re.findall(_PERCENT, clause))) <= 1 for clause in re.split(r",\s*", sentence))
+        if (len(metrics) > 1 and not own_clauses
+                and not any(all(metric in src for metric in metrics) for src in sentences_source)):
             issues.append(f"une cifras que en la fuente son de acciones distintas ({', '.join(sorted(metrics))}): «{sentence.strip()}»")
         # Palabras junto a cada cifra que no aparecen en la fuente (p. ej., "incidentes" por "accidentes").
         words = re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]+|" + _PERCENT, sentence)
@@ -472,6 +476,21 @@ def _review_and_correct(experiences, final_descriptions, proposals, profile, rep
             report["avisos"].append(f"Revisa {name} antes de enviar: " + "; ".join(remaining))
 
 
+MAX_EXPERIENCE_WORDS = 130
+
+
+def _limit_words(text, max_words=MAX_EXPERIENCE_WORDS):
+    """Si Gemini se pasa del límite, quita oraciones completas del final (las menos
+    relevantes, porque se le pide ordenar de lo más a lo menos relevante). No reescribe nada."""
+    sentences = re.split(r"(?<=[.!?])\s+", str(text or "").strip())
+    kept = []
+    for sentence in sentences:
+        if kept and len(" ".join(kept + [sentence]).split()) > max_words:
+            break
+        kept.append(sentence)
+    return " ".join(kept)
+
+
 def polish_with_gemini(summary, experiences, priorities, profile, offer_text=None, unevidenced=None):
     """Redacta con Gemini el perfil profesional (un prompt) y las experiencias (otro prompt).
 
@@ -518,6 +537,9 @@ def polish_with_gemini(summary, experiences, priorities, profile, offer_text=Non
                 "resultado": "redactado por Gemini" if polished else "Gemini lo devolvió vacío; se conserva el de Groq",
             })
         _review_and_correct(experiences, final_descriptions, proposals, profile, report)
+        for index in proposals:
+            if index < len(final_descriptions):
+                final_descriptions[index] = _limit_words(final_descriptions[index])
     except GeminiUnavailable as exc:
         report["avisos"].append(f"Experiencias: Gemini no disponible ({exc}); se conservan los textos de Groq.")
         for index, item in enumerate(experiences):

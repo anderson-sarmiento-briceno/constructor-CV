@@ -81,9 +81,11 @@ def _offer_echoes(generated_text, offer_text):
 def _unevidenced_offer_terms(generated_text, offer_text, source_fact):
     """Términos que vienen de la oferta y están en el texto generado, pero sin raíz en la fuente real."""
     source_stems = _stems_of(json.dumps(source_fact, ensure_ascii=False), _ECHO_STEM)
+    # Los verbos en primera persona del pasado ("presenté", "integré") narran una acción
+    # propia, no copian un requisito; las exageraciones ("lideré") se validan aparte.
     return {
         term for term in _offer_echoes(generated_text, offer_text)
-        if _stem(term, _ECHO_STEM) not in source_stems
+        if _stem(term, _ECHO_STEM) not in source_stems and not term.endswith("é")
     }
 
 
@@ -415,7 +417,9 @@ def _experience_issues(description, experience, offer_text, forbidden_companies,
         issues.append("respuesta vacía o menor de 25 palabras")
     if any(phrase in description.casefold() for phrase in _EVALUATOR_PHRASES):
         issues.append("contiene frases evaluativas o tareas futuras")
-    if any(company.casefold() in description.casefold() for company in forbidden_companies):
+    # Palabra completa: "ia" no debe coincidir dentro de "energía" o "historia".
+    if any(re.search(r"(?<!\w)" + re.escape(company.casefold()) + r"(?!\w)", description.casefold())
+           for company in forbidden_companies):
         issues.append("menciona una organización objetivo prohibida")
     if len(source_words & description_words) < 3:
         issues.append("coincidencia insuficiente con la descripción fuente")

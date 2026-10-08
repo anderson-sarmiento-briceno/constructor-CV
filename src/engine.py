@@ -100,16 +100,47 @@ def select_logros_for_cv(profile, offer_text, experiences):
         terms = _significant_terms(logro)
         return len(terms & experience_terms) / len(terms) if terms else 1.0
 
-    fresh_logros = [logro for logro in all_logros if overlap(logro) < 0.6]
-    offer_words = {word.casefold() for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", offer_text or "")}
-    selected = [
-        logro for logro in select_relevant_logros({"logros": fresh_logros}, offer_text)
-        if any(word.casefold() in offer_words for word in re.findall(r"[A-Za-zÁÉÍÓÚÑáéíóúñ]{4,}", logro))
-    ][:5]
-    for logro in sorted(all_logros, key=overlap):
+    # Relevancia: cuántas habilidades o herramientas del propio perfil que la oferta pide
+    # menciona el logro (por raíz: "Automatización" cuenta en "automatizados"). Las palabras
+    # genéricas ("análisis", "mejorar") no cuentan, así un logro ajeno a la oferta no entra.
+    offer_stems = _stems_of(offer_text, _ECHO_STEM)
+
+    def name_stems(name):
+        return {_stem(term, _ECHO_STEM) for term in _significant_terms(name)}
+
+    def mentions(text, name):
+        stems = name_stems(name)
+        if stems:
+            return stems <= _stems_of(text, _ECHO_STEM)
+        return bool(re.search(r"(?<!\w)" + re.escape(name.casefold()) + r"(?!\w)", (text or "").casefold()))
+
+    skill_names = {
+        part.strip()
+        for key in ("aptitudes", "software", "competencias", "habilidades", "nuevas_tecnologias")
+        for item in profile.get(key, [])
+        for part in re.split(r"\s*[/&]\s*", str(item)) if len(part.strip()) >= 2
+    }
+    requested = {name for name in skill_names if mentions(offer_text, name)}
+
+    def relevance(logro):
+        return sum(mentions(logro, name) for name in requested)
+
+    # Hasta 5 logros relacionados con la oferta que no repiten las experiencias; luego
+    # hasta 4 con los que repiten poco. Nunca un logro repetido (misma cifra o proyecto)
+    # ni uno sin relación con la oferta: mejor menos logros que relleno.
+    candidates = [logro for logro in all_logros if relevance(logro) > 0 and overlap(logro) < 1.0]
+    ranked = sorted(candidates, key=lambda logro: (overlap(logro) >= 0.6, -relevance(logro), overlap(logro)))
+    selected = [logro for logro in ranked if overlap(logro) < 0.6][:5]
+    for logro in ranked:
         if len(selected) >= 4:
             break
         if logro not in selected:
+            selected.append(logro)
+    # Si la oferta casi no nombra habilidades del perfil, al menos 2 logros que no repitan.
+    for logro in sorted(all_logros, key=overlap):
+        if len(selected) >= 2:
+            break
+        if logro not in selected and overlap(logro) < 0.6:
             selected.append(logro)
     return selected
 
@@ -334,12 +365,15 @@ def adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies=Non
         )
         if str(item).strip()
     }
-    def verified_items(items):
+    def verified_items(items, source):
+        """Solo nombres que existen en ESA categoría del perfil (así una herramienta como
+        "R" no entra en las aptitudes aunque el modelo la ponga ahí)."""
+        category = {str(item).strip().casefold(): str(item).strip() for item in source if str(item).strip()}
         selected = []
         if not isinstance(items, list):
             return selected
         for item in items:
-            verified = allowed.get(str(item).strip().casefold())
+            verified = category.get(str(item).strip().casefold())
             if verified and verified not in selected:
                 selected.append(verified)
         return selected
@@ -357,20 +391,21 @@ def adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies=Non
         ranked.sort(key=lambda entry: (-entry[0], entry[1]))
         return [item for _, _, item in ranked]
 
-    selected_aptitudes = relevant_items(verified_items(skills_result.get("aptitudes_clave", [])))
-    selected_tools = relevant_items(verified_items(skills_result.get("herramientas", [])))
-    selected_competencies = relevant_items(verified_items(skills_result.get("competencias", [])))
-    matched_aptitudes = list(selected_aptitudes)
-    matched_tools = list(selected_tools)
-    matched_competencies = list(selected_competencies)
     aptitude_source = profile.get("aptitudes", [])
     software_source = profile.get("software", [])
     competency_source = profile.get("competencias", [])
     new_technology_source = profile.get("nuevas_tecnologias", [])
-    selected_new_technologies = [
-        item for item in verified_items(skills_result.get("nuevas_tecnologias", []))
-        if item in relevant_items(new_technology_source)
-    ]
+    aptitude_choice = verified_items(skills_result.get("aptitudes_clave", []), aptitude_source)
+    tool_choice = verified_items(skills_result.get("herramientas", []), software_source)
+    competency_choice = verified_items(skills_result.get("competencias", []), competency_source)
+    new_technology_choice = verified_items(skills_result.get("nuevas_tecnologias", []), new_technology_source)
+    selected_aptitudes = relevant_items(aptitude_choice)
+    selected_tools = relevant_items(tool_choice)
+    selected_competencies = relevant_items(competency_choice)
+    matched_aptitudes = list(selected_aptitudes)
+    matched_tools = list(selected_tools)
+    matched_competencies = list(selected_competencies)
+    selected_new_technologies = [item for item in new_technology_choice if item in relevant_items(new_technology_source)]
 
     # Para que la barra lateral coincida con el texto del CV, después de lo que pide la
     # oferta se priorizan los elementos que el propio CV menciona (primero el perfil
@@ -409,19 +444,18 @@ def adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies=Non
                 selected.append(item)
         return selected
 
-    selected_aptitudes = fill_from_master(
-        selected_aptitudes, aptitude_source, model_choice=verified_items(skills_result.get("aptitudes_clave", []))
-    )
-    selected_tools = fill_from_master(
-        selected_tools, software_source, minimum=8, model_choice=verified_items(skills_result.get("herramientas", []))
-    )
+    selected_aptitudes = fill_from_master(selected_aptitudes, aptitude_source, model_choice=aptitude_choice)
+    selected_tools = fill_from_master(selected_tools, software_source, minimum=8, model_choice=tool_choice)
     selected_competencies = fill_from_master(
-        selected_competencies, competency_source, minimum=6,
-        model_choice=verified_items(skills_result.get("competencias", [])),
+        selected_competencies, competency_source, minimum=6, model_choice=competency_choice
     )
+    # NUEVAS TECNOLOGÍAS no repite lo que ya se muestra en SOFTWARE.
+    shown_tools = {item.casefold() for item in selected_tools}
+    new_technology_source = [item for item in new_technology_source if item.casefold() not in shown_tools]
     selected_new_technologies = fill_from_master(
-        selected_new_technologies, new_technology_source,
-        model_choice=verified_items(skills_result.get("nuevas_tecnologias", [])),
+        [item for item in selected_new_technologies if item.casefold() not in shown_tools],
+        new_technology_source,
+        model_choice=[item for item in new_technology_choice if item.casefold() not in shown_tools],
     )
     selected_skills = []
     for item in matched_aptitudes + matched_tools + matched_competencies:
@@ -532,7 +566,13 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
     adapted = adapt_profile_to_offer(profile, offer_text, analysis)
     adapted["analysis"] = analysis
     adapted["analysis_priorities"] = analysis.get("palabras_clave", [])
-    forbidden_companies = extract_offer_organizations(offer_text, offer_name)
+    # Un nombre que aparece en el propio perfil (p. ej., "IA" o "Python") no puede ser la
+    # organización de la oferta: si se prohibiera, se rechazarían experiencias reales.
+    profile_text = json.dumps(profile, ensure_ascii=False).casefold()
+    forbidden_companies = [
+        name for name in extract_offer_organizations(offer_text, offer_name)
+        if not re.search(r"(?<!\w)" + re.escape(name.casefold()) + r"(?!\w)", profile_text)
+    ]
     adapted = adapt_content_with_llm(profile, offer_text, adapted, forbidden_companies)
     # Redacción final con Gemini: un prompt para el perfil y otro para las experiencias.
     unevidenced = analysis.get("requisitos_no_evidenciados", []) if analysis.get("analisis_oferta_llm_respondio") else []

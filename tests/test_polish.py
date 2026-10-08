@@ -254,6 +254,16 @@ def test_report_is_incomplete_when_experiences_stay_without_gemini(gemini):
     assert any("Experiencias: Gemini no disponible" in notice for notice in report["avisos"])
 
 
+def test_long_experience_is_cut_by_whole_sentences_at_the_word_limit():
+    first = "Construí informes de telemetría con Python para la operación de la flota eléctrica. " * 10
+    text = first + "Esta última oración ya no cabe dentro del límite de palabras."
+
+    limited = polish._limit_words(text)
+
+    assert len(limited.split()) <= polish.MAX_EXPERIENCE_WORDS
+    assert limited.endswith(".") and "última oración" not in limited
+
+
 def test_polish_is_skipped_when_disabled(monkeypatch):
     monkeypatch.setenv("GEMINI_POLISH", "0")
     summary, _, report = polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)

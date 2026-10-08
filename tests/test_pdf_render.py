@@ -183,7 +183,7 @@ def test_adapt_content_does_not_fill_unrelated_technologies(monkeypatch):
     result = adapt_content_with_llm(profile, "Visualización de información con Tableau", adapted)
 
     assert result["software"] == ["Tableau", "Python", "AWS"]
-    assert result["nuevas_tecnologias"] == ["Cloud", "AWS", "Claude"]
+    assert result["nuevas_tecnologias"] == ["Cloud", "Claude"]  # AWS ya está en SOFTWARE
     assert result["keywords"] == ["Tableau"]
 
 
@@ -211,8 +211,8 @@ def test_sidebar_skill_groups_prioritize_offer_matches_then_fill_to_five(monkeyp
     assert result["aptitudes"][0] == "Análisis predictivo"
     assert len(result["software"]) == 8
     assert result["software"][:2] == ["Tableau", "AWS"]
+    assert "AWS" not in result["nuevas_tecnologias"]  # ya está en SOFTWARE: no se repite
     assert len(result["nuevas_tecnologias"]) == 5
-    assert result["nuevas_tecnologias"][0] == "AWS"
     assert len(result["competencias"]) == 6
     assert result["competencias"][0] == "Análisis predictivo"
 
@@ -227,7 +227,7 @@ def test_master_summary_fallback_is_shortened_by_whole_sentences():
     assert short.endswith(".")
 
 
-def test_logros_keep_at_least_four_preferring_offer_and_non_repeated(monkeypatch):
+def test_logros_are_related_to_offer_and_never_padded_with_unrelated_or_repeated(monkeypatch):
     import src.engine as engine
 
     profile = {
@@ -247,9 +247,10 @@ def test_logros_keep_at_least_four_preferring_offer_and_non_repeated(monkeypatch
 
     result = adapt_content_with_llm(profile, "Buscamos experto en Python para modelos de churn", adapted)
 
-    assert len(result["logros"]) == 4
     assert result["logros"][0] == "Modelo de churn en Python con 30% de mejora."
     assert "Reducción del 40% en accidentes de obra." not in result["logros"]  # repite la experiencia
+    assert "Curso de oratoria." not in result["logros"]  # sin relación con la oferta
+    assert len(result["logros"]) == 2  # 1 relacionado + mínimo de 2 con uno que no repite
 
 
 def test_sidebar_prefers_tools_mentioned_in_cv_and_skips_near_duplicates(monkeypatch):
@@ -330,3 +331,25 @@ def test_logros_skip_a_project_already_told_in_the_experiences():
 
     assert not any("apuestas" in logro for logro in selected[:4])
     assert any("Informes automatizados" in logro for logro in selected)
+
+
+def test_skills_only_enter_their_own_category_and_offer_acronyms_are_not_companies(monkeypatch):
+    import src.engine as engine
+    import src.llm.llm as llm
+
+    profile = {"aptitudes": ["Inteligencia Artificial", "Análisis predictivo"], "software": ["R", "Python"],
+               "nuevas_tecnologias": ["Make"], "competencias": [], "habilidades": [], "certificaciones": []}
+    result = llm_result([])
+    result["habilidades"]["aptitudes_clave"] = ["R", "Make", "Inteligencia Artificial"]
+    monkeypatch.setattr(engine, "adapt_experiences_and_skills", lambda *args: result)
+
+    adapted = adapt_content_with_llm(profile, "Inteligencia Artificial con R y Make", {"experiencia": [], "keywords": [], "logros": []})
+
+    assert "R" not in adapted["aptitudes"] and "Make" not in adapted["aptitudes"]
+    # La organización se busca por palabra completa: "Media" no está dentro de "intermedia".
+    experience = {"descripcion": "Construí reportes de consumo con Python para la operación intermedia de la flota."}
+    text = ("Construí reportes de consumo con Python para la operación intermedia de la flota, "
+            "consolidando datos de telemetría en tableros de seguimiento para la operación diaria.")
+    assert not any("organización" in issue for issue in llm._experience_issues(text, experience, "", ["Media"]))
+    assert any("organización" in issue
+               for issue in llm._experience_issues(text + " Trabajé para Media.", experience, "", ["Media"]))

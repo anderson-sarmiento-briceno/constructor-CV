@@ -57,6 +57,14 @@ def _wait_from_message(detail):
     return seconds + 60 * int(minutes or 0)
 
 
+def _is_long_limit(detail):
+    """True si es el límite por día o si Groq pide esperar más de lo que vale la pena."""
+    if "per day" in (detail or "").casefold():
+        return True
+    wait = _wait_from_message(detail)
+    return wait is not None and wait > _MAX_WAIT_SECONDS
+
+
 def _wait_seconds(exc, attempt, detail=""):
     """Espera antes de reintentar: la MAYOR entre la cabecera retry-after y la que dice el
     mensaje de Groq (con dos segundos de margen); si no hay ninguna, una espera creciente.
@@ -114,6 +122,10 @@ def chat(system, user, json_mode=True, max_retries=5):
             return json.loads(content) if json_mode else content.strip()
         except error.HTTPError as exc:
             detail = _error_detail(exc)
+            # Límite diario (o una espera de más de un minuto): reintentar cada 60 s no sirve
+            # y solo demora el CV; se falla al instante y el programa sigue sin Groq.
+            if exc.code == 429 and _is_long_limit(detail):
+                raise LLMError(f"Groq respondió HTTP 429 (límite diario): {detail}") from None
             if exc.code in _RETRY_STATUS and attempt < max_retries:
                 time.sleep(_wait_seconds(exc, attempt, detail))
                 continue

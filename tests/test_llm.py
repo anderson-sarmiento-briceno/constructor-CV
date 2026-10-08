@@ -141,6 +141,16 @@ def test_repeated_429_waits_longer_until_the_minute_frees_up(fake_urlopen):
     assert [round(wait) for wait in fake_urlopen["sleeps"]] == [8, 20, 40, 60]
 
 
+def test_daily_limit_fails_at_once_without_waiting(fake_urlopen):
+    message = ("Rate limit reached on tokens per day (TPD): Limit 200000, Used 199300, Requested 3143. "
+               "Please try again in 17m35.376s.")
+    fake_urlopen["responses"] = [_http_error(429, message=message)]
+
+    with pytest.raises(client.LLMError, match="límite diario"):
+        client.chat("reglas", "tarea")
+    assert fake_urlopen["sleeps"] == [] and len(fake_urlopen["requests"]) == 1
+
+
 def test_wait_from_message_understands_minutes_and_milliseconds():
     assert client._wait_from_message("try again in 1m2.5s") == 62.5
     assert client._wait_from_message("try again in 450ms") == 0.45
