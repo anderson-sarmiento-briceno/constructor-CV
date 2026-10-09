@@ -268,3 +268,21 @@ def test_polish_is_skipped_when_disabled(monkeypatch):
     monkeypatch.setenv("GEMINI_POLISH", "0")
     summary, _, report = polish.polish_with_gemini(SUMMARY, EXPERIENCES, [], PROFILE)
     assert report["estado"] == "desactivado" and summary == SUMMARY
+
+
+def test_review_detects_metric_moved_to_other_action_short_text_and_false_simultaneity():
+    source = {"descripcion": (
+        "Construí informes automatizados en PDF con Polars y ReportLab a partir de telemetría y archivos Parquet, "
+        "lo que redujo en un 80% el tiempo dedicado a los reportes. Integré datos de APIs, Siesa y Excel en "
+        "PostgreSQL mediante pipelines ETL en Python. Optimicé código en Spark, reduciendo en un 40% el tiempo "
+        "de procesamiento. Elaboré un modelo de desgaste de flota que mejoró en un 28% la precisión de las "
+        "proyecciones. Construí dashboards en Power BI para el seguimiento de la operación de la flota eléctrica "
+        "y de sus indicadores de consumo, con datos actualizados de telemetría y de mantenimiento diario.")}
+    moved = "Creé pipelines ETL en Python que integraron APIs y Siesa, disminuyendo en un 80% el tiempo de reporte."
+    kept = "Reduje en un 80% el tiempo de reporte al automatizar informes en PDF con Polars."
+
+    assert any("80% quedó unida a otra acción" in issue for issue in polish._review_experience(moved, source, set()))
+    assert not any("unida a otra acción" in issue for issue in polish._review_experience(kept, source, set()))
+    assert any("demasiado corta" in issue for issue in polish._review_experience(kept, source, set()))
+    assert any("paralelamente" in issue
+               for issue in polish._review_experience("Paralelamente, " + kept, source, set()))

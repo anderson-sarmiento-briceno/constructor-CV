@@ -165,7 +165,10 @@ def _misplaced_metric_issues(description, experience):
     ]
     experience_terms = {_stem(term) for sentence in source_sentences for term in _significant_terms(sentence)}
     issues = []
-    for clause in re.split(r"[,;:]|(?<=[.!?])\s+", re.sub(r"(\d)\s+%", r"\1%", description or "")):
+    # Cláusulas: también se separa en "y" + verbo en pasado ("…con XGBoost y elaboré un modelo…"),
+    # porque ahí empieza otra acción con su propia cifra.
+    clause_split = r"[,;:]|(?<=[.!?])\s+|\s+y\s+(?=[a-záéíóúñ]+[éí]\b)"
+    for clause in re.split(clause_split, re.sub(r"(\d)\s+%", r"\1%", description or "")):
         for metric in re.findall(r"\d+(?:[.,]\d+)?%", clause):
             metric_terms = {
                 _stem(term)

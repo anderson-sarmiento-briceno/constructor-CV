@@ -576,10 +576,12 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     def para(value, style):
         return Paragraph(escape(str(value)), style)
 
-    def link_para(label, url, style):
-        safe_label = escape(str(label))
-        safe_url = escape(str(url))
-        return Paragraph(f'<link href="{safe_url}">{safe_label}</link>', style)
+    def link_markup(label, url, color):
+        """Enlace con color y subrayado para que se vea que se puede hacer clic."""
+        return f'<link href="{escape(str(url))}"><u><font color="{color}">{escape(str(label))}</font></u></link>'
+
+    # Texto visible sin "https://" (más corto, no se parte en dos líneas); el enlace es el completo.
+    github_label = re.sub(r"^https?://(www\.)?", "", str(github)).rstrip("/")
 
     def bullet(value, style):
         return Paragraph(f'<font color="#2E6572">&#8226;</font> {escape(str(value))}', style)
@@ -617,7 +619,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
             sidebar_section("CONTACTO")
             for value in (phone, email, linkedin, city):
                 sidebar_flow.append(para(value, sidebar_text))
-            sidebar_flow.append(link_para(f"GitHub: {github}", github, sidebar_text))
+            sidebar_flow.append(Paragraph("GitHub: " + link_markup(github_label, github, "#8FD8E6"), sidebar_text))
             sidebar_section("APTITUDES CLAVE")
             for value in aptitudes[:7]:
                 sidebar_flow.append(bullet(value, sidebar_text))
@@ -653,7 +655,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
         para("  |  ".join(title_parts), title_style),
         Paragraph(
             f'{escape(phone)}  |  {escape(email)}  |  LinkedIn: {escape(linkedin)}  |  '
-            f'<link href="{escape(github)}">GitHub: {escape(github)}</link>  |  {escape(city)}',
+            f'GitHub: {link_markup(github_label, github, "#1A5FB4")}  |  {escape(city)}',
             contact_style,
         ),
         para("  |  ".join(str(skill) for skill in skills[:6]), contact_style),

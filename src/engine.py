@@ -129,7 +129,8 @@ def select_logros_for_cv(profile, offer_text, experiences):
     # hasta 4 con los que repiten poco. Nunca un logro repetido (misma cifra o proyecto)
     # ni uno sin relación con la oferta: mejor menos logros que relleno.
     candidates = [logro for logro in all_logros if relevance(logro) > 0 and overlap(logro) < 1.0]
-    ranked = sorted(candidates, key=lambda logro: (overlap(logro) >= 0.6, -relevance(logro), overlap(logro)))
+    # A igual relevancia, manda el orden del perfil maestro (lo que la persona pone primero).
+    ranked = sorted(candidates, key=lambda logro: (overlap(logro) >= 0.6, -relevance(logro), all_logros.index(logro)))
     selected = [logro for logro in ranked if overlap(logro) < 0.6][:5]
     for logro in ranked:
         if len(selected) >= 4:

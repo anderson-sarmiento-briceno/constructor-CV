@@ -43,7 +43,14 @@ _SHARED_RULES = """PRESERVACIÓN RIGUROSA:
 - No exageres: no conviertas "aporté a" o "insumo para" en "logré" o "permití", ni "construí" en "lideré". No cambies el significado de una métrica.
 - No agregues adjetivos inflados ("avanzado", "sofisticado", "robusto", "estratégico", "riguroso", "integral", "de alta precisión", "de alto impacto", "estrictos") ni muletillas ("garantizando", "apalancado", "articulando", "soluciones escalables", "decisiones estratégicas", "mi capacidad para", "mi ventaja competitiva").
 - PALABRAS PROHIBIDAS: nunca uses las palabras de la lista que se te entrega (aparecen en la oferta pero no en mi perfil), ni sus variantes. Las prioridades de la oferta solo indican qué destacar primero.
-- Ortografía impecable, incluidos los pretéritos ("optimicé", "automaticé", "organicé"). No uses punto y coma para encadenar ideas.
+- Ortografía impecable, incluidos los pretéritos ("optimicé", "automaticé", "organicé", "realicé"; nunca "automatizé" ni "realizé"). No uses punto y coma para encadenar ideas.
+
+REDACCIÓN PROFESIONAL (revisa cada oración antes de responder):
+- Usa solo verbos profesionales y precisos, como "diseñé", "desarrollé", "implementé", "construí", "integré", "automaticé", "optimicé", "desplegué", "lideré" (solo si el original lo dice), "analicé", "consolidé" o "migré". Nunca uses verbos coloquiales, figurados o raros ("tragué", "chupé", "metí", "armé", "saqué", "jalé", "agarré"): si dudas de un verbo, usa uno de esa lista.
+- Cada oración debe ser gramaticalmente completa y entenderse sola: sujeto implícito "yo", verbo conjugado y complemento. No cierres una oración con un complemento cortado ("…y un sistema web en Django con Claude"): di qué se hizo con cada cosa.
+- Los relativos ("que", "cuyo", "cuyas", "el cual") deben referirse sin ambigüedad a lo que corresponde (mal: "la telemetría de una flota cuyas medidas redujeron el consumo"; bien: "las medidas aplicadas a partir del modelo redujeron el consumo").
+- Concordancia correcta de género, número y tiempo verbal en toda la oración ("generando… y automatizando", nunca "generando… y automatizaron").
+- No repitas la misma palabra significativa dos veces en una oración ni en oraciones seguidas.
 - Copia los nombres propios, siglas y nombres de herramientas exactamente como aparecen, incluidos sus símbolos: "PSS/E", "MT/BT", "SQL / PostgreSQL", "ISO 50001". Nunca cambies una barra "/" por "y".
 - No traduzcas los términos técnicos que el material deja en inglés: "pipelines" nunca es "tuberías", "dashboards" nunca es "tableros de mando", "feature engineering" se queda igual o como "ingeniería de variables" solo si así aparece.
 
@@ -384,13 +391,29 @@ def _mentioned_tools(text, tools):
     }
 
 
-def _review_experience(text, source, other_tools):
+def _generic_result_stems(sources):
+    """Palabras que en las fuentes acompañan a varias cifras distintas ("tiempo", "precisión"):
+    describen un resultado genérico, no la acción que lo produjo."""
+    seen_with = {}
+    for source in sources:
+        for sentence in _source_sentences(source):
+            for match in re.finditer(_PERCENT, sentence):
+                window = " ".join(sentence[:match.start()].split()[-6:] + sentence[match.end():].split()[:6])
+                for stem in _stems_of(window, _ECHO_STEM):
+                    seen_with.setdefault(stem, set()).add(match.group())
+    return {stem for stem, found in seen_with.items() if len(found) >= 2}
+
+
+def _review_experience(text, source, other_tools, generic=None):
     """Errores de hechos en una experiencia redactada por Gemini, comparada con su fuente."""
     issues = []
     text = re.sub(r"(\d)\s+%", r"\1%", text or "")
     sentences_source = _source_sentences(source)
     source_text = " ".join(sentences_source)
-    source_stems = _stems_of(source_text, _ECHO_STEM)
+    # Incluye las herramientas de la experiencia: "Scikit-learn" junto a una cifra no es un error.
+    source_stems = _stems_of(source_text + " " + " ".join(map(str, source.get("herramientas", []))), _ECHO_STEM)
+
+    generic_result_stems = generic if generic is not None else _generic_result_stems([source])
 
     new_numbers = set(re.findall(r"\d+(?:[.,]\d+)?", text)) - set(re.findall(r"\d+(?:[.,]\d+)?", source_text))
     if new_numbers:
@@ -418,6 +441,31 @@ def _review_experience(text, source, other_tools):
                 if _stem(lowered, _ECHO_STEM) not in source_stems:
                     issues.append(f"junto a la cifra {word} aparece «{term}», que no está en la fuente")
 
+        # La cifra debe seguir junto a su acción: de las palabras propias de su oración en la
+        # fuente (las que no salen en otras oraciones, p. ej. "informes", "Polars") deben quedar
+        # al menos 2. Si no, la cifra se pegó a otra acción ("ETL ... 80%" cuando era de informes).
+        sentence_stems = _stems_of(sentence, _ECHO_STEM) - generic_result_stems
+        for metric in metrics:
+            origins = [src for src in sentences_source if metric in src]  # descripción y logro
+            if not origins:
+                continue
+            origin = origins[0]
+            others = _stems_of(" ".join(src for src in sentences_source if metric not in src), _ECHO_STEM)
+            own = _stems_of(" ".join(origins), _ECHO_STEM) - others - generic_result_stems
+            position = sentence.find(metric)
+            action_stems = _stems_of(sentence[:position], _ECHO_STEM) if position >= 0 else set()
+            if len(own) >= 3 and not (own & action_stems) and len(own & sentence_stems) < 2:
+                issues.append(f"la cifra {metric} quedó unida a otra acción; en la fuente es de: «{origin.strip()}»")
+
+    # Demasiado corta: se perdieron hechos de la fuente.
+    if len(text.split()) < 70 and len(source_text.split()) > 100:
+        issues.append("descripción demasiado corta (menos de 70 palabras): recupera de la fuente los hechos, "
+                      "herramientas y cifras más relevantes hasta 80-130 palabras")
+    # Simultaneidad que la fuente no dice.
+    for word in ("paralelamente", "mientras"):
+        if re.search(rf"\b{word}\b", text, re.IGNORECASE) and not re.search(rf"\b{word}\b", source_text, re.IGNORECASE):
+            issues.append(f"usa «{word}», pero la fuente no dice que las acciones fueran simultáneas")
+
     issues.extend(_misplaced_metric_issues(text, source))
     foreign = _mentioned_tools(text, other_tools) - _mentioned_tools(source_text, other_tools)
     if foreign:
@@ -429,6 +477,7 @@ def _correct_experiences(flagged):
     """Una sola llamada para corregir solo las experiencias con errores. Usa primero el
     modelo de respaldo (el ligero, con más cupo gratuito) para gastar poco."""
     prompt = f"""TAREA: corrige SOLO los problemas indicados en cada descripción, cambiando lo mínimo y conservando su estilo y su longitud.
+Cada oración que modifiques debe quedar completa, con verbos profesionales y bien redactada (aplica las reglas de REDACCIÓN PROFESIONAL). Antes de responder, relee cada descripción completa como la leería un reclutador.
 
 Devuelve JSON con esta forma:
 {{"experiencias":[{{"indice":0,"descripcion":"..."}}]}}
@@ -446,10 +495,11 @@ def _review_and_correct(experiences, final_descriptions, proposals, profile, rep
     El texto final siempre es de Gemini; lo que siga mal queda como aviso para revisar."""
     sources = [_source_experience(item, profile) for item in experiences]
     all_tools = [set(source.get("herramientas", [])) for source in sources]
+    generic = _generic_result_stems(sources)
 
     def review(index):
         other_tools = set().union(*(tools for i, tools in enumerate(all_tools) if i != index)) - all_tools[index]
-        return _review_experience(final_descriptions[index], sources[index], other_tools)
+        return _review_experience(final_descriptions[index], sources[index], other_tools, generic)
 
     flagged = {index: review(index) for index in proposals if index < len(experiences) and sources[index]}
     flagged = {index: issues for index, issues in flagged.items() if issues}
