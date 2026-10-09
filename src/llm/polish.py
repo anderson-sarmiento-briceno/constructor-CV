@@ -51,6 +51,7 @@ REDACCIÓN PROFESIONAL (revisa cada oración antes de responder):
 - Los relativos ("que", "cuyo", "cuyas", "el cual") deben referirse sin ambigüedad a lo que corresponde (mal: "la telemetría de una flota cuyas medidas redujeron el consumo"; bien: "las medidas aplicadas a partir del modelo redujeron el consumo").
 - Concordancia correcta de género, número y tiempo verbal en toda la oración ("generando… y automatizando", nunca "generando… y automatizaron").
 - No repitas la misma palabra significativa dos veces en una oración ni en oraciones seguidas.
+- No escribas nombres de clases de librerías ("DecisionTreeRegressor", "LinearRegression", "GradientBoostingRegressor"): di "modelos basados en árboles" o "regresión lineal".
 - Copia los nombres propios, siglas y nombres de herramientas exactamente como aparecen, incluidos sus símbolos: "PSS/E", "MT/BT", "SQL / PostgreSQL", "ISO 50001". Nunca cambies una barra "/" por "y".
 - No traduzcas los términos técnicos que el material deja en inglés: "pipelines" nunca es "tuberías", "dashboards" nunca es "tableros de mando", "feature engineering" se queda igual o como "ingeniería de variables" solo si así aparece.
 
@@ -90,7 +91,7 @@ REESTRUCTURA:
 - No cierres una descripción con una enumeración de áreas o disciplinas ("Integré ingeniería eléctrica, gestión de proyectos, análisis de datos y automatización"): termina con un hecho concreto de la fuente.
 - Primera persona del singular y tiempo pasado.
 - Conserva sin alteración todas las tecnologías, herramientas, normas y estándares, y todas las cifras y métricas, cada una unida al mismo resultado y a la misma acción que en el original. No elimines ninguna.
-- Cada descripción es UN SOLO PÁRRAFO continuo, sin listas ni títulos, de entre 80 y 130 palabras. El límite de 130 palabras es estricto: la fuente tiene más hechos de los que caben, así que elige los más relevantes para la oferta y deja fuera el resto. Si recuperas algo de la fuente, quita a cambio lo menos relevante. No escribas el nombre de la empresa, el cargo ni las fechas: ya aparecen en el encabezado.
+- Cada descripción es UN SOLO PÁRRAFO continuo, sin listas ni títulos, con la longitud que indica su campo "palabras" (por ejemplo "110-160"): la experiencia más relevante para la oferta tiene más espacio. Usa ese espacio sin quedarte corto, y el límite superior es estricto: elige los hechos más relevantes para la oferta, empezando por las herramientas de la fuente que la oferta pide, y deja fuera el resto. No escribas el nombre de la empresa, el cargo ni las fechas: ya aparecen en el encabezado.
 
 EJEMPLO DE TRANSFORMACIÓN (fíjate en que no se agrega ningún hecho):
 - ENTRADA: "Hice proyectos de software con Python y Django. Reduje errores en 20%. Usé PostgreSQL para las bases de datos y lideré 5 personas."
@@ -348,8 +349,71 @@ def _source_experience(item, profile):
     return {}
 
 
-def _polish_experiences(experiences, descriptions, priorities, forbidden, profile):
+LONG_RANGE = (120, 160)    # la experiencia más relevante para la oferta
+MEDIUM_RANGE = (100, 140)  # las dos más relevantes cuando están casi empatadas
+SHORT_RANGE = (80, 110)    # las demás: nunca tan cortas que pierdan sus cifras principales
+
+
+def _meaningful_stems(text):
+    return {_stem(term, _ECHO_STEM) for term in _significant_terms(text) if len(term) >= 4}
+
+
+def _mentions(text, name):
+    stems = _meaningful_stems(name)
+    if stems:
+        return stems <= _meaningful_stems(text)
+    return bool(re.search(r"(?<!\w)" + re.escape(name.casefold()) + r"(?!\w)", (text or "").casefold()))
+
+
+def _relevance_scores(experiences, profile, offer_text):
+    """Relevancia de cada experiencia para la oferta: palabras de la oferta en su fuente (con más
+    peso las que solo tiene esa experiencia, como "dashboards") más las herramientas o habilidades
+    del perfil que la oferta pide y que esa experiencia menciona."""
+    sources = [json.dumps(_source_experience(item, profile), ensure_ascii=False) for item in experiences]
+    source_stems = [_meaningful_stems(source) for source in sources]
+    offer_stems = _meaningful_stems(offer_text)
+    names = {
+        part.strip()
+        for key in ("aptitudes", "software", "competencias", "habilidades", "nuevas_tecnologias")
+        for item in profile.get(key, [])
+        for part in re.split(r"\s*[/&]\s*", str(item)) if len(part.strip()) >= 2
+    }
+    requested = [name for name in names if _mentions(offer_text, name)]
+    scores = []
+    for source, stems in zip(sources, source_stems):
+        words = sum(1 / sum(stem in other for other in source_stems) for stem in stems & offer_stems)
+        scores.append(words + sum(_mentions(source, name) for name in requested))
+    return scores
+
+
+def _word_ranges(experiences, profile, offer_text):
+    """Cupo de palabras por experiencia: la que más coincide con la oferta recibe más; si las dos
+    primeras están casi empatadas, ambas reciben un cupo medio."""
+    if not offer_text or len(experiences) < 2:
+        return [(80, 130)] * len(experiences)
+    scores = _relevance_scores(experiences, profile, offer_text)
+    order = sorted(range(len(scores)), key=lambda index: -scores[index])
+    first, second = order[0], order[1]
+    if scores[first] and scores[second] >= 0.75 * scores[first]:
+        return [MEDIUM_RANGE if index in (first, second) else SHORT_RANGE for index in range(len(scores))]
+    return [LONG_RANGE if index == first else SHORT_RANGE for index in range(len(scores))]
+
+
+def _offer_tools(source, offer_text):
+    """Herramientas de la experiencia que la oferta nombra (p. ej., n8n, Make, Agentes de voz)."""
+    offer_stems = _stems_of(offer_text, _ECHO_STEM)
+    found = []
+    for tool in source.get("herramientas", []):
+        stems = _stems_of(str(tool), _ECHO_STEM)
+        exact = re.search(r"(?<!\w)" + re.escape(str(tool).casefold()) + r"(?!\w)", (offer_text or "").casefold())
+        if exact or (stems and stems <= offer_stems):
+            found.append(str(tool))
+    return found
+
+
+def _polish_experiences(experiences, descriptions, priorities, forbidden, profile, ranges):
     blocks = [{"indice": index, "cargo": item.get("cargo", ""), "fechas": item.get("fechas", ""),
+               "palabras": f"{ranges[index][0]}-{ranges[index][1]}",
                "texto_actual": text, "fuente": _source_experience(item, profile)}
               for index, (item, text) in enumerate(zip(experiences, descriptions))]
     prompt = f"""TAREA: reescribe en profundidad cada descripción de experiencia, sin cambiar sus hechos.
@@ -375,11 +439,15 @@ _PERCENT = r"\d+(?:[.,]\d+)?%"
 # Palabras con las que se describe cualquier cambio en una métrica: no indican un cambio de
 # significado aunque la fuente use otra ("disminución" en lugar de "reducción").
 _CHANGE_WORDS = {"reducción", "disminución", "mejora", "aumento", "incremento", "ahorro", "porcentaje", "casos"}
-_VERB_ENDINGS = ("ando", "iendo", "endo", "aron", "ieron", "ó", "é", "í", "ar", "er", "ir")
+# Incluye los pretéritos irregulares de "reducir", "producir"… ("redujo", "redujeron", "reduje").
+_VERB_ENDINGS = ("ando", "iendo", "endo", "aron", "ieron", "eron", "ujo", "uje", "ó", "é", "í", "ar", "er", "ir")
 
 
 def _source_sentences(source):
-    text = " ".join([str(source.get("descripcion", ""))] + [str(item) for item in source.get("logros", [])])
+    # Cada logro es una oración aparte aunque no termine en punto (antes se pegaba con el
+    # siguiente y cifras de proyectos distintos parecían ir juntas).
+    parts = [str(source.get("descripcion", ""))] + [str(item) for item in source.get("logros", [])]
+    text = " ".join(part.strip() if part.strip().endswith((".", "!", "?")) else part.strip() + "." for part in parts if part.strip())
     return [re.sub(r"(\d)\s+%", r"\1%", sentence) for sentence in re.split(r"(?<=[.!?])\s+", text) if sentence.strip()]
 
 
@@ -404,7 +472,7 @@ def _generic_result_stems(sources):
     return {stem for stem, found in seen_with.items() if len(found) >= 2}
 
 
-def _review_experience(text, source, other_tools, generic=None):
+def _review_experience(text, source, other_tools, generic=None, min_words=70, wanted_tools=()):
     """Errores de hechos en una experiencia redactada por Gemini, comparada con su fuente."""
     issues = []
     text = re.sub(r"(\d)\s+%", r"\1%", text or "")
@@ -450,6 +518,10 @@ def _review_experience(text, source, other_tools, generic=None):
             if not origins:
                 continue
             origin = origins[0]
+            # Si va junto a otra cifra que en la fuente comparte oración con ella (35%, 50% y
+            # 70% de los mismos agentes), sigue unida a su acción.
+            if any(other != metric and any(other in src for src in origins) for other in metrics):
+                continue
             others = _stems_of(" ".join(src for src in sentences_source if metric not in src), _ECHO_STEM)
             own = _stems_of(" ".join(origins), _ECHO_STEM) - others - generic_result_stems
             position = sentence.find(metric)
@@ -458,9 +530,13 @@ def _review_experience(text, source, other_tools, generic=None):
                 issues.append(f"la cifra {metric} quedó unida a otra acción; en la fuente es de: «{origin.strip()}»")
 
     # Demasiado corta: se perdieron hechos de la fuente.
-    if len(text.split()) < 70 and len(source_text.split()) > 100:
-        issues.append("descripción demasiado corta (menos de 70 palabras): recupera de la fuente los hechos, "
-                      "herramientas y cifras más relevantes hasta 80-130 palabras")
+    if len(text.split()) < min_words and len(source_text.split()) > min_words + 30:
+        issues.append(f"descripción demasiado corta (menos de {min_words} palabras): recupera de la fuente los "
+                      "hechos, herramientas y cifras más relevantes para la oferta")
+    # Herramientas de la fuente que la oferta pide y se perdieron (p. ej., n8n, agentes de voz).
+    missing = [tool for tool in wanted_tools if not _mentioned_tools(text, [tool])]
+    if missing:
+        issues.append("faltan herramientas de la fuente que la oferta pide: " + ", ".join(missing))
     # Simultaneidad que la fuente no dice.
     for word in ("paralelamente", "mientras"):
         if re.search(rf"\b{word}\b", text, re.IGNORECASE) and not re.search(rf"\b{word}\b", source_text, re.IGNORECASE):
@@ -490,16 +566,26 @@ DESCRIPCIONES CON PROBLEMAS (fuente = mi perfil maestro, la verdad):
                        parse=lambda result: _parse_experiences(result, indices))
 
 
-def _review_and_correct(experiences, final_descriptions, proposals, profile, report):
+def _review_and_correct(experiences, final_descriptions, proposals, profile, report, ranges=None, offer_text=None):
     """Revisa localmente lo que redactó Gemini y, si hay errores, pide UNA corrección.
     El texto final siempre es de Gemini; lo que siga mal queda como aviso para revisar."""
     sources = [_source_experience(item, profile) for item in experiences]
     all_tools = [set(source.get("herramientas", [])) for source in sources]
     generic = _generic_result_stems(sources)
+    ranges = ranges or [(80, 130)] * len(experiences)
 
     def review(index):
         other_tools = set().union(*(tools for i, tools in enumerate(all_tools) if i != index)) - all_tools[index]
-        return _review_experience(final_descriptions[index], sources[index], other_tools, generic)
+        # Solo a las experiencias con más espacio se les exigen las herramientas que pide la oferta
+        # (como máximo 4); en las cortas no caben todas.
+        wanted = []
+        if offer_text and ranges[index] in (LONG_RANGE, MEDIUM_RANGE):
+            # Primero las más específicas (las que tienen menos experiencias, p. ej. n8n o Make),
+            # no las que tienen todas (Python).
+            tools = _offer_tools(sources[index], offer_text)
+            wanted = sorted(tools, key=lambda tool: sum(tool in other for other in all_tools))[:4]
+        return _review_experience(final_descriptions[index], sources[index], other_tools, generic,
+                                  min_words=ranges[index][0] - 5, wanted_tools=wanted)
 
     flagged = {index: review(index) for index in proposals if index < len(experiences) and sources[index]}
     flagged = {index: issues for index, issues in flagged.items() if issues}
@@ -529,13 +615,15 @@ def _review_and_correct(experiences, final_descriptions, proposals, profile, rep
 MAX_EXPERIENCE_WORDS = 130
 
 
-def _limit_words(text, max_words=MAX_EXPERIENCE_WORDS):
+def _limit_words(text, max_words=MAX_EXPERIENCE_WORDS, min_words=0):
     """Si Gemini se pasa del límite, quita oraciones completas del final (las menos
-    relevantes, porque se le pide ordenar de lo más a lo menos relevante). No reescribe nada."""
+    relevantes, porque se le pide ordenar de lo más a lo menos relevante). No reescribe nada.
+    Nunca deja el texto por debajo de min_words: antes, una segunda oración larga se quitaba
+    entera y la experiencia quedaba en una sola oración."""
     sentences = re.split(r"(?<=[.!?])\s+", str(text or "").strip())
     kept = []
     for sentence in sentences:
-        if kept and len(" ".join(kept + [sentence]).split()) > max_words:
+        if kept and len(" ".join(kept + [sentence]).split()) > max_words and len(" ".join(kept).split()) >= min_words:
             break
         kept.append(sentence)
     return " ".join(kept)
@@ -574,8 +662,10 @@ def polish_with_gemini(summary, experiences, priorities, profile, offer_text=Non
         report["bloques"].append({"bloque": "perfil", "resultado": "sin Gemini; se conserva el de Groq"})
 
     final_descriptions = list(descriptions)
+    ranges = _word_ranges(experiences, profile, offer_text)
+    report["palabras_por_experiencia"] = [f"{low}-{high}" for low, high in ranges]
     try:
-        proposals, used, failures = _polish_experiences(experiences, descriptions, priorities, forbidden, profile)
+        proposals, used, failures = _polish_experiences(experiences, descriptions, priorities, forbidden, profile, ranges)
         report["experiencias"] = used
         report["intentos_fallidos"] += failures
         for index, item in enumerate(experiences):
@@ -586,10 +676,10 @@ def polish_with_gemini(summary, experiences, priorities, profile, offer_text=Non
                 "bloque": item.get("empresa", f"experiencia {index}"),
                 "resultado": "redactado por Gemini" if polished else "Gemini lo devolvió vacío; se conserva el de Groq",
             })
-        _review_and_correct(experiences, final_descriptions, proposals, profile, report)
+        _review_and_correct(experiences, final_descriptions, proposals, profile, report, ranges, offer_text)
         for index in proposals:
             if index < len(final_descriptions):
-                final_descriptions[index] = _limit_words(final_descriptions[index])
+                final_descriptions[index] = _limit_words(final_descriptions[index], ranges[index][1], ranges[index][0])
     except GeminiUnavailable as exc:
         report["avisos"].append(f"Experiencias: Gemini no disponible ({exc}); se conservan los textos de Groq.")
         for index, item in enumerate(experiences):

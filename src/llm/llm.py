@@ -78,15 +78,42 @@ def _offer_echoes(generated_text, offer_text):
     return {term for term in _significant_terms(generated_text) if _stem(term, _ECHO_STEM) in offer_stems}
 
 
+_TECH_TOKEN = re.compile(
+    r"(?<![\w/])([A-Za-z0-9][\w+#.\-]*(?:/[\w+#.\-]+)+|[A-Za-z]*[A-Z][a-z]*[A-Z0-9][\w]*)(?![\w/])"
+)
+
+
+def _has_token(text, token):
+    return bool(re.search(r"(?<![\w/])" + re.escape(token.casefold()) + r"(?![\w/])", (text or "").casefold()))
+
+
+def _offer_tech_tokens(offer_text):
+    """Siglas y nombres técnicos de la oferta que el filtro por palabras no ve por ser cortos o
+    tener símbolos: "CI/CD", "IaC", "K8s", "EKS", "LLMs"."""
+    def technical(token):
+        # "técnicos/herramientas" son dos palabras comunes unidas por una barra, no una sigla.
+        parts = token.split("/")
+        return len(parts) == 1 or any(part != part.lower() or len(part) <= 4 for part in parts)
+
+    return {token for token in _TECH_TOKEN.findall(offer_text or "") if len(token) >= 2 and technical(token)}
+
+
 def _unevidenced_offer_terms(generated_text, offer_text, source_fact):
     """Términos que vienen de la oferta y están en el texto generado, pero sin raíz en la fuente real."""
-    source_stems = _stems_of(json.dumps(source_fact, ensure_ascii=False), _ECHO_STEM)
+    source_json = json.dumps(source_fact, ensure_ascii=False)
+    source_stems = _stems_of(source_json, _ECHO_STEM)
     # Los verbos en primera persona del pasado ("presenté", "integré") narran una acción
     # propia, no copian un requisito; las exageraciones ("lideré") se validan aparte.
-    return {
+    terms = {
         term for term in _offer_echoes(generated_text, offer_text)
         if _stem(term, _ECHO_STEM) not in source_stems and not term.endswith("é")
     }
+    # Siglas técnicas ("CI/CD", "IaC"): deben estar escritas tal cual en la fuente.
+    terms |= {
+        token.casefold() for token in _offer_tech_tokens(offer_text)
+        if _has_token(generated_text, token) and not _has_token(source_json, token)
+    }
+    return terms
 
 
 def relevant_sentences(text, offer_text, max_words=130):
@@ -127,12 +154,19 @@ def relevant_sentences(text, offer_text, max_words=130):
 def offer_terms_missing_from_profile(offer_text, profile, limit=60):
     """Términos de la oferta que no aparecen (ni por raíz) en ninguna parte del perfil:
     son las palabras que un redactor no debe usar para no atribuir algo que no se tiene."""
-    profile_stems = _stems_of(json.dumps(profile, ensure_ascii=False), _ECHO_STEM)
-    missing = sorted({
+    profile_json = json.dumps(profile, ensure_ascii=False)
+    profile_stems = _stems_of(profile_json, _ECHO_STEM)
+    # Primero las siglas y nombres técnicos ("CI/CD", "Terraform", "Docker"): son los que más
+    # importa no atribuir. Antes la lista se cortaba por orden alfabético y los perdía.
+    tech = sorted({token.casefold() for token in _offer_tech_tokens(offer_text) if not _has_token(profile_json, token)})
+    words = {
         term for term in _significant_terms(offer_text)
         if len(term) >= 4 and _stem(term, _ECHO_STEM) not in profile_stems
-    })
-    return missing[:limit]
+    }
+    proper = sorted(term for term in words if re.search(r"(?<!\w)" + re.escape(term) + r"(?!\w)", offer_text or "", re.IGNORECASE)
+                    and re.search(r"(?<![\w.])" + re.escape(term[0].upper()) + re.escape(term[1:]), offer_text or ""))
+    rest = sorted(words - set(proper))
+    return list(dict.fromkeys(tech + proper + rest))[:limit]
 
 
 _SUMMARY_CLICHES = (

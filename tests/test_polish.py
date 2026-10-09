@@ -286,3 +286,43 @@ def test_review_detects_metric_moved_to_other_action_short_text_and_false_simult
     assert any("demasiado corta" in issue for issue in polish._review_experience(kept, source, set()))
     assert any("paralelamente" in issue
                for issue in polish._review_experience("Paralelamente, " + kept, source, set()))
+
+
+def test_most_relevant_experience_gets_more_words_and_must_keep_offer_tools():
+    profile = {"experiencia": [
+        {"empresa": "A", "cargo": "X", "descripcion": "Construí redes eléctricas y tableros de obra.", "herramientas": ["AutoCAD"]},
+        {"empresa": "B", "cargo": "Y", "descripcion": "Desarrollé agentes de IA con n8n, Make y OpenAI integrados con CRM.",
+         "herramientas": ["n8n", "Make", "OpenAI", "CRM", "Python"]},
+    ]}
+    offer = "Buscamos ingeniero de agentes de IA con n8n, Make, OpenAI, CRM y Python."
+
+    ranges = polish._word_ranges(profile["experiencia"], profile, offer)
+
+    assert ranges == [polish.SHORT_RANGE, polish.LONG_RANGE]
+    source = polish._source_experience(profile["experiencia"][1], profile)
+    issues = polish._review_experience("Desarrollé agentes de IA con OpenAI integrados con CRM.", source, set(),
+                                       wanted_tools=["n8n", "Make"])
+    assert any("n8n, Make" in issue for issue in issues)
+    assert polish._limit_words("Uno dos tres. " * 60, 100).count(".") <= 34
+
+
+def test_word_cap_never_leaves_experience_below_its_minimum():
+    first = "Diseñé un modelo de regresión del consumo energético de la flota para fijar metas de ahorro. "
+    long_second = "Integré datos de APIs y telemetría en PostgreSQL mediante pipelines ETL en Python " * 6 + "."
+    text = first + long_second
+
+    assert len(polish._limit_words(text, 100, 60).split()) >= 60
+
+
+def test_achievements_without_final_period_do_not_hide_a_metric_moved_to_other_project():
+    source = {"descripcion": "Desarrollé agentes de ventas con OpenAI que aumentaron un 35% la conversión y automatizaron "
+                             "el 70% de las preguntas frecuentes. Desarrollé bots para Forex con MetaTrader 5 que alcanzaron "
+                             "una precisión del 82% en las señales de trading.",
+              "logros": ["Agentes de ventas que lograron un 35% más de conversión y el 70% de preguntas automatizadas",
+                         "Bots para Forex con MetaTrader 5 y un 82% de precisión"]}
+    merged = ("Desplegué agentes de ventas con OpenAI, logrando un aumento del 35% en la conversión y automatizando "
+              "el 70% de las preguntas frecuentes, alcanzando una precisión del 82% en las señales de trading.")
+
+    assert any("une cifras" in issue for issue in polish._review_experience(merged, source, set(), min_words=0))
+    correct = "Desarrollé bots para Forex con MetaTrader 5 que redujeron errores y alcanzaron un 82% de precisión."
+    assert not any("redujeron" in issue for issue in polish._review_experience(correct, source, set(), min_words=0))

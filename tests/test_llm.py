@@ -414,3 +414,15 @@ def test_each_experience_goes_complete_in_its_own_call(fake_chat):
     assert result["diagnosticos"][0]["motivo_fallback"] == ["Groq respondió HTTP 400"]
     assert result["descripciones"][1] == FIXED_EXPERIENCE
     assert result["habilidades"]["herramientas"] == ["SQL"]
+
+
+def test_short_technical_acronyms_from_offer_are_caught_and_listed_first():
+    offer = "Buscamos experiencia con CI/CD, IaC con Terraform, K8s, Python y procesos técnicos/administrativos."
+    profile = {"software": ["Python"], "experiencia": [{"descripcion": "Desarrollé APIs en Python."}]}
+
+    missing = llm.offer_terms_missing_from_profile(offer, profile)
+
+    assert missing[:3] == ["ci/cd", "iac", "k8s"] and "terraform" in missing
+    assert "técnicos/administrativos" not in missing and "python" not in missing
+    issues = llm._unevidenced_offer_terms("Gestioné despliegues con CI/CD en Python.", offer, profile)
+    assert "ci/cd" in issues
