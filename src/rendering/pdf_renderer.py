@@ -268,7 +268,7 @@ def render_cv_to_pdf_legacy(profile_or_html, output_pdf_path):
     story.append(Paragraph(f"CIUDAD: {city}", body_style))
 
     story.append(Paragraph("APTITUDES CLAVE", section_header))
-    story.append(Paragraph(" • ".join(str(skill) for skill in skills[:12]), body_style))
+    story.append(Paragraph(" | ".join(str(skill) for skill in skills[:12]), body_style))
 
     story.append(Paragraph("EXPERIENCIA PROFESIONAL", section_header))
     for exp in experiences[:4]:
@@ -293,24 +293,24 @@ def render_cv_to_pdf_legacy(profile_or_html, output_pdf_path):
     if courses:
         story.append(Paragraph("FORMACIÓN COMPLEMENTARIA", section_header))
         for curso in courses[:5]:
-            story.append(Paragraph(f"• {curso}", body_style))
+            story.append(Paragraph(f"– {curso}", body_style))
 
     if languages:
         story.append(Paragraph("IDIOMAS", section_header))
         for idioma in languages[:6]:
-            story.append(Paragraph(f"• {idioma}", body_style))
+            story.append(Paragraph(f"– {idioma}", body_style))
 
     story.append(Paragraph("COMPETENCIAS TÉCNICAS", section_header))
     for skill in skills[:12]:
-        story.append(Paragraph(f"• {skill}", body_style))
+        story.append(Paragraph(f"– {skill}", body_style))
     story.append(Paragraph("LOGROS DESTACADOS", section_header))
     for logro in logros[:5]:
-        story.append(Paragraph(f"• {logro}", body_style))
+        story.append(Paragraph(f"– {logro}", body_style))
 
     if interests:
         story.append(Paragraph("INTERESES", section_header))
         for item in interests[:6]:
-            story.append(Paragraph(f"• {item}", body_style))
+            story.append(Paragraph(f"– {item}", body_style))
 
     doc.build(story)
     return str(output_path)
@@ -588,7 +588,9 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
         github_label = github_label.split("/", 1)[0]
 
     def bullet(value, style):
-        return Paragraph(f'<font color="#2E6572">&#8226;</font> {escape(str(value))}', style)
+        # Raya "–" y no "•": en Helvetica la viñeta queda con el código 127 y varios lectores de
+        # PDF (como los de algunos ATS) la extraen como un carácter de control.
+        return Paragraph(f'<font color="#2E6572">&#8211;</font> {escape(str(value))}', style)
 
     def sidebar_block(canvas, doc):
         canvas.saveState()
