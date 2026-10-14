@@ -11,7 +11,7 @@
     "telefono": "321 212 1013",
     "correo": "andersarb@gmail.com",
     "linkedin": "anderson-sarmiento-briceno",
-    "github": "https://github.com/anderson-sarmiento-briceno",
+    "github": "https://anderson-sarmiento-briceno.github.io/anderson-sarmiento-briceno/",
     "foto": null
   },
   "perfil_profesional": {
@@ -98,7 +98,7 @@
         "Procesos ETL y web scraping para fuentes web.",
         "Prototipo de Data Warehouse con Python, R, Delta Lake y DuckDB."
       ],
-      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "n8n", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión", "R", "Delta Lake", "DuckDB", "Polars", "SQLAlchemy", "Data Warehouse", "YOLO", "Deep Learning", "Visión por computadora", "Inteligencia Artificial", "OpenAI", "Canvas", "Make", "Cloud", "GitHub Copilot", "Claude", "Hugging Face", "Agentes de IA", "FastAPI", "AWS", "CRM", "Google Calendar", "Agentes de voz", "AWS Lambda", "DynamoDB", "APIs REST", "RESTful"],
+      "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "n8n", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión", "R", "Delta Lake", "DuckDB", "Polars", "SQLAlchemy", "Data Warehouse", "YOLO", "Deep Learning", "Visión por computadora", "Inteligencia Artificial", "OpenAI", "Canvas", "Make", "Cloud", "GitHub Copilot", "Claude", "Hugging Face", "PyTorch", "Procesamiento de lenguaje natural (NLP)", "Agentes de IA", "FastAPI", "AWS", "CRM", "Google Calendar", "Agentes de voz", "AWS Lambda", "DynamoDB", "APIs REST", "RESTful"],
       "logros": [
         "Agentes de IA de ventas integrados con WhatsApp API y CRM que lograron un incremento del 35% en la conversión de ventas y automatizaron la resolución del 70% de las preguntas frecuentes",
         "Sistema automatizado de agendamiento de citas médicas sincronizado con Google Calendar para clínicas",
@@ -107,7 +107,7 @@
         "Optimización de código en Python y Spark que redujo en un 40% el tiempo de procesamiento.",
         "Automatización de extracción, transformación y almacenamiento de datos web con reducción del 75% en tiempo de recolección manual de información."
       ],
-      "descripcion": "Diseñé soluciones de Inteligencia Artificial, Ciencia de Datos y automatización para distintas necesidades de negocio, partiendo del levantamiento de requerimientos con cada cliente. Desarrollé agentes de IA de ventas y atención con OpenAI, n8n y WhatsApp Business API, integrados con CRM y Google Calendar, con lógica en Python expuesta mediante APIs REST con FastAPI, desplegada en AWS Lambda y con datos en DynamoDB, como un agente que vende por WhatsApp los productos de una ferretería. Estos agentes generaron +35% en tasas de conversión, una reducción del 50% en costos de adquisición y la automatización del 70% de las preguntas frecuentes. También desarrollé agentes de voz que realizan llamadas para promocionar marcas, con FastAPI en AWS. Desarrollé bots para mercados financieros y Forex integrados con MetaTrader 5, con modelos de clasificación y de regresión basados en árboles que alcanzaron una precisión del 82% en las señales de trading. Construí modelos de clasificación y regresión para apuestas deportivas con Python, encargándome de la exploración de datos, el feature engineering y la validación. Entrené un detector de placas de vehículos en imágenes con YOLO, un modelo de Deep Learning de visión por computadora para clasificación y detección de objetos. Automaticé la extracción, transformación y almacenamiento de información de fuentes web mediante procesos ETL y web scraping, reduciendo en un 75% el tiempo de recolección manual. Prototipé un Data Warehouse con modelado dimensional en esquema estrella y pipelines ETL en Python y R, con almacenamiento en Delta Lake y DuckDB, usando Polars y SQLAlchemy para integrar APIs, bases de datos, archivos, servicios SOAP y web scraping, con validaciones de llaves (PK/FK), diagnósticos de calidad de datos y diccionarios de datos. Desplegué modelos de Machine Learning en producción mediante APIs REST con FastAPI en AWS y pipelines automatizados. Optimicé código en Python y Spark, reduciendo en un 40% el tiempo de procesamiento."
+      "descripcion": "Diseñé soluciones de Inteligencia Artificial, Ciencia de Datos y automatización para distintas necesidades de negocio, partiendo del levantamiento de requerimientos con cada cliente. Desarrollé agentes de IA de ventas y atención con OpenAI, n8n y WhatsApp Business API, integrados con CRM y Google Calendar, con lógica en Python expuesta mediante APIs REST con FastAPI, desplegada en AWS Lambda y con datos en DynamoDB, como un agente que vende por WhatsApp los productos de una ferretería. Estos agentes generaron +35% en tasas de conversión, una reducción del 50% en costos de adquisición y la automatización del 70% de las preguntas frecuentes. También desarrollé agentes de voz que realizan llamadas para promocionar marcas, con FastAPI en AWS. Desarrollé bots para mercados financieros y Forex integrados con MetaTrader 5, con modelos de clasificación y de regresión basados en árboles que alcanzaron una precisión del 82% en las señales de trading. Construí modelos de clasificación y regresión para apuestas deportivas con Python, encargándome de la exploración de datos, el feature engineering y la validación. Entrené un detector de placas de vehículos en imágenes con YOLO (Ultralytics, sobre PyTorch), un modelo de Deep Learning de visión por computadora para clasificación y detección de objetos. Automaticé la extracción, transformación y almacenamiento de información de fuentes web mediante procesos ETL y web scraping, reduciendo en un 75% el tiempo de recolección manual. Prototipé un Data Warehouse con modelado dimensional en esquema estrella y pipelines ETL en Python y R, con almacenamiento en Delta Lake y DuckDB, usando Polars y SQLAlchemy para integrar APIs, bases de datos, archivos, servicios SOAP y web scraping, con validaciones de llaves (PK/FK), diagnósticos de calidad de datos y diccionarios de datos. Desplegué modelos de Machine Learning en producción mediante APIs REST con FastAPI en AWS y pipelines automatizados. Optimicé código en Python y Spark, reduciendo en un 40% el tiempo de procesamiento."
     },
     {
       "empresa": "Enel",
@@ -256,7 +256,7 @@
     "Delta Lake / DuckDB",
     "Django",
     "FastAPI (APIs RESTful)",
-    "YOLO",
+    "YOLO / PyTorch",
     "n8n / WhatsApp Business API",
     "MetaTrader 5",
     "AWS",
@@ -301,6 +301,7 @@
     "Modelos de pronóstico",
     "Deep Learning",
     "Visión por computadora",
+    "Procesamiento de lenguaje natural (NLP)",
     "Machine Learning",
     "Análisis exploratorio de datos",
     "Feature Engineering",

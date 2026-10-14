@@ -197,7 +197,7 @@ def render_cv_to_pdf_legacy(profile_or_html, output_pdf_path):
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
     linkedin = _safe_text(dp.get("linkedin"), "anderson-sarmiento-briceno")
-    github = _safe_text(dp.get("github"), "https://github.com/anderson-sarmiento-briceno")
+    github = _safe_text(dp.get("github"), "https://anderson-sarmiento-briceno.github.io/anderson-sarmiento-briceno/")
 
     summary = _safe_text(
         profile.get("perfil_profesional", {}).get("resumen"),
@@ -335,7 +335,7 @@ def render_cv_to_pdf_model_legacy(profile_or_html, output_pdf_path):
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
     linkedin = _safe_text(dp.get("linkedin"), "anderson-sarmiento-briceno")
-    github = _safe_text(dp.get("github"), "https://github.com/anderson-sarmiento-briceno")
+    github = _safe_text(dp.get("github"), "https://anderson-sarmiento-briceno.github.io/anderson-sarmiento-briceno/")
     city = _safe_text(dp.get("ciudad"), "Bogotá, Colombia")
     summary = _safe_text(
         profile.get("perfil_profesional", {}).get("resumen"),
@@ -499,7 +499,7 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
     phone = _safe_text(dp.get("telefono"), "321 212 1013")
     email = _safe_text(dp.get("correo"), "andersarb@gmail.com")
     linkedin = _safe_text(dp.get("linkedin"), "anderson-sarmiento-briceno")
-    github = _safe_text(dp.get("github"), "https://github.com/anderson-sarmiento-briceno")
+    github = _safe_text(dp.get("github"), "https://anderson-sarmiento-briceno.github.io/anderson-sarmiento-briceno/")
     city = _safe_text(dp.get("ciudad"), "Bogotá, Colombia")
     summary = _safe_text(
         profile.get("perfil_profesional", {}).get("resumen"),
@@ -582,6 +582,10 @@ def render_cv_to_pdf_model(profile_or_html, output_pdf_path):
 
     # Texto visible sin "https://" (más corto, no se parte en dos líneas); el enlace es el completo.
     github_label = re.sub(r"^https?://(www\.)?", "", str(github)).rstrip("/")
+    # En una página de GitHub Pages ("usuario.github.io/repo") se muestra solo el dominio, que cabe
+    # en una línea de la barra lateral; el enlace sigue siendo la dirección completa.
+    if ".github.io/" in github_label:
+        github_label = github_label.split("/", 1)[0]
 
     def bullet(value, style):
         return Paragraph(f'<font color="#2E6572">&#8226;</font> {escape(str(value))}', style)

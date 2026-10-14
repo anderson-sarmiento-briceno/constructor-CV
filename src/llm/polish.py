@@ -479,7 +479,10 @@ def _review_experience(text, source, other_tools, generic=None, min_words=70, wa
     sentences_source = _source_sentences(source)
     source_text = " ".join(sentences_source)
     # Incluye las herramientas de la experiencia: "Scikit-learn" junto a una cifra no es un error.
-    source_stems = _stems_of(source_text + " " + " ".join(map(str, source.get("herramientas", []))), _ECHO_STEM)
+    # Las herramientas se separan por mayúsculas ("LinearRegression" -> "Linear Regression"),
+    # para que "regresión lineal" junto a una cifra no se marque como palabra nueva.
+    tools_text = re.sub(r"(?<=[a-z])(?=[A-Z])", " ", " ".join(map(str, source.get("herramientas", []))))
+    source_stems = _stems_of(source_text + " " + tools_text, _ECHO_STEM)
 
     generic_result_stems = generic if generic is not None else _generic_result_stems([source])
 
@@ -537,6 +540,15 @@ def _review_experience(text, source, other_tools, generic=None, min_words=70, wa
     missing = [tool for tool in wanted_tools if not _mentioned_tools(text, [tool])]
     if missing:
         issues.append("faltan herramientas de la fuente que la oferta pide: " + ", ".join(missing))
+    # Nombres de clases de librerías ("DecisionTreeRegressor"): el prompt los prohíbe.
+    classes = sorted(set(re.findall(r"\b[A-Z][a-z]+(?:[A-Z][a-z]+)+(?:Regressor|Classifier|Regression)\b", text)))
+    if classes:
+        issues.append("usa nombres de clases de librerías (" + ", ".join(classes) + "): escribe, por ejemplo, \"modelos basados en árboles\" o \"regresión lineal\"")
+    # Relativo "cuyo/cuya": el modelo ligero lo usa mal ("la norma ISO 50001, cuyas medidas…").
+    relative = re.search(r"[^.]*\bcuy[oa]s?\b[^.]*\.", text, re.IGNORECASE)
+    if relative:
+        issues.append("usa un relativo ambiguo con «cuyo/cuya»; reescribe la oración sin él, por ejemplo "
+                      f"\"Las medidas aplicadas a partir del modelo redujeron…\": «{relative.group(0).strip()}»")
     # Simultaneidad que la fuente no dice.
     for word in ("paralelamente", "mientras"):
         if re.search(rf"\b{word}\b", text, re.IGNORECASE) and not re.search(rf"\b{word}\b", source_text, re.IGNORECASE):

@@ -326,3 +326,13 @@ def test_achievements_without_final_period_do_not_hide_a_metric_moved_to_other_p
     assert any("une cifras" in issue for issue in polish._review_experience(merged, source, set(), min_words=0))
     correct = "Desarrollé bots para Forex con MetaTrader 5 que redujeron errores y alcanzaron un 82% de precisión."
     assert not any("redujeron" in issue for issue in polish._review_experience(correct, source, set(), min_words=0))
+
+
+def test_ambiguous_relative_cuyo_is_flagged_for_correction():
+    source = {"descripcion": "Diseñé un modelo de regresión bajo ISO 50001. Las medidas aplicadas a partir del modelo "
+                             "redujeron el consumo en un 6%."}
+    bad = "Diseñé un modelo de regresión bajo ISO 50001, cuyas medidas aplicadas redujeron el consumo en un 6%."
+
+    assert any("cuyo/cuya" in issue for issue in polish._review_experience(bad, source, set(), min_words=0))
+    good = "Diseñé un modelo de regresión bajo ISO 50001. Las medidas aplicadas redujeron el consumo en un 6%."
+    assert not any("cuyo/cuya" in issue for issue in polish._review_experience(good, source, set(), min_words=0))

@@ -204,11 +204,16 @@ def _misplaced_metric_issues(description, experience):
     clause_split = r"[,;:]|(?<=[.!?])\s+|\s+y\s+(?=[a-záéíóúñ]+[éí]\b)"
     for clause in re.split(clause_split, re.sub(r"(\d)\s+%", r"\1%", description or "")):
         for metric in re.findall(r"\d+(?:[.,]\d+)?%", clause):
-            metric_terms = {
-                _stem(term)
-                for sentence in source_sentences if re.search(rf"(?<![\d.,]){re.escape(metric)}", sentence)
-                for term in _significant_terms(sentence)
-            }
+            # La oración siguiente cuenta como parte de la misma acción si se refiere a ella
+            # ("Para estos modelos exploré los datos…" después de "Desarrollé modelos… 40%").
+            related = []
+            for position, sentence in enumerate(source_sentences):
+                if re.search(rf"(?<![\d.,]){re.escape(metric)}", sentence):
+                    related.append(sentence)
+                    following = source_sentences[position + 1] if position + 1 < len(source_sentences) else ""
+                    if re.match(r"\s*(?:para|con|en|de)\s+(?:est[oe]s?|ell[oa]s?)\b", following, re.IGNORECASE):
+                        related.append(following)
+            metric_terms = {_stem(term) for sentence in related for term in _significant_terms(sentence)}
             if not metric_terms:
                 continue  # la cifra no está en la experiencia: lo reporta el control de cifras
             clause_terms = {_stem(term) for term in _significant_terms(clause)}

@@ -227,7 +227,7 @@ def test_master_summary_fallback_is_shortened_by_whole_sentences():
     assert short.endswith(".")
 
 
-def test_logros_are_related_to_offer_and_never_padded_with_unrelated_or_repeated(monkeypatch):
+def test_logros_are_at_least_four_relevant_first_and_repeated_last(monkeypatch):
     import src.engine as engine
 
     profile = {
@@ -247,10 +247,9 @@ def test_logros_are_related_to_offer_and_never_padded_with_unrelated_or_repeated
 
     result = adapt_content_with_llm(profile, "Buscamos experto en Python para modelos de churn", adapted)
 
-    assert result["logros"][0] == "Modelo de churn en Python con 30% de mejora."
-    assert "Reducción del 40% en accidentes de obra." not in result["logros"]  # repite la experiencia
-    assert "Curso de oratoria." not in result["logros"]  # sin relación con la oferta
-    assert len(result["logros"]) == 2  # 1 relacionado + mínimo de 2 con uno que no repite
+    assert len(result["logros"]) == 4  # siempre al menos 4
+    assert result["logros"][0] == "Modelo de churn en Python con 30% de mejora."  # el relacionado, primero
+    assert "Reducción del 40% en accidentes de obra." not in result["logros"]  # repite la experiencia: último recurso
 
 
 def test_sidebar_prefers_tools_mentioned_in_cv_and_skips_near_duplicates(monkeypatch):

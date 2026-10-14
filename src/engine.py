@@ -137,12 +137,16 @@ def select_logros_for_cv(profile, offer_text, experiences):
             break
         if logro not in selected:
             selected.append(logro)
-    # Si la oferta casi no nombra habilidades del perfil, al menos 2 logros que no repitan.
-    for logro in sorted(all_logros, key=overlap):
-        if len(selected) >= 2:
+    # Siempre al menos 4 logros: primero los relacionados con la oferta (arriba); si no
+    # alcanzan, se completa con otros del perfil, empezando por los que menos repiten las
+    # experiencias (a igual nivel, en el orden del perfil maestro). Los que repiten una
+    # experiencia solo entran como último recurso.
+    rest = sorted((logro for logro in all_logros if logro not in selected),
+                  key=lambda logro: (overlap(logro) >= 1.0, overlap(logro), all_logros.index(logro)))
+    for logro in rest:
+        if len(selected) >= 4:
             break
-        if logro not in selected and overlap(logro) < 0.6:
-            selected.append(logro)
+        selected.append(logro)
     return selected
 
 
