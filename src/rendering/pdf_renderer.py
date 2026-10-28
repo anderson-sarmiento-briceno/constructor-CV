@@ -1,3 +1,4 @@
+import datetime
 import os
 import re
 from pathlib import Path
@@ -74,11 +75,44 @@ def _contact_line(profile):
     return " | ".join(parts) if parts else city
 
 
+_MESES = {"ene": 1, "feb": 2, "mar": 3, "abr": 4, "may": 5, "jun": 6, "jul": 7, "ago": 8, "aug": 8,
+          "sep": 9, "set": 9, "oct": 10, "nov": 11, "dic": 12, "dec": 12, "jan": 1, "apr": 4}
+
+
+def _duration(fechas):
+    """Duración de un periodo "Jul 2025 – Sep 2026" (o "– Actualidad"), contando ambos meses:
+    "1 año 3 meses". Devuelve "" si las fechas no tienen ese formato."""
+    found = re.findall(r"([A-Za-zÁÉÍÓÚáéíóú]{3})[a-záéíóú]*\.?\s+(\d{4})", fechas or "")
+    if not found:
+        return ""
+    start_month, start_year = _MESES.get(found[0][0].lower()), int(found[0][1])
+    if len(found) >= 2:
+        end_month, end_year = _MESES.get(found[1][0].lower()), int(found[1][1])
+    elif re.search(r"actual|presente|hoy", fechas, re.IGNORECASE):
+        today = datetime.date.today()
+        end_month, end_year = today.month, today.year
+    else:
+        return ""
+    if not start_month or not end_month:
+        return ""
+    months = (end_year - start_year) * 12 + (end_month - start_month) + 1
+    if months <= 0:
+        return ""
+    years, rest = divmod(months, 12)
+    parts = ([f"{years} año" + ("s" if years > 1 else "")] if years else []) + \
+            ([f"{rest} mes" + ("es" if rest > 1 else "")] if rest else [])
+    return " ".join(parts)
+
+
 def _experience_block(exp):
     empresa = _safe_text(exp.get("empresa"), "Empresa")
     cargo = _safe_text(exp.get("cargo"), "Cargo")
     descripcion = _safe_text(exp.get("descripcion"), "")
     fechas = _safe_text(exp.get("fechas"), "")
+    # La duración se muestra junto a las fechas para que un error en ellas salte a la vista.
+    duracion = _duration(fechas)
+    if duracion:
+        fechas = f"{fechas} · {duracion}"
     return {
         "empresa": empresa,
         "cargo": cargo,
@@ -243,7 +277,7 @@ def render_cv_to_pdf_legacy(profile_or_html, output_pdf_path):
     experiences = profile.get("experiencia", [])
     if not experiences:
         experiences = [
-            {"empresa": "Green Mobil", "cargo": "Científico de Datos", "fechas": "20 Jul 2025 – 15 Sep 2025", "descripcion": "Modelos predictivos, ETL y dashboards en Power BI."},
+            {"empresa": "Green Mobil", "cargo": "Científico de Datos", "fechas": "Jul 2025 – Sep 2026", "descripcion": "Modelos predictivos, ETL y dashboards en Power BI."},
             {"empresa": "Consultor Freelance", "cargo": "Científico de Datos & Automatización", "fechas": "Sep 2023 – Jul 2025", "descripcion": "Chatbots, modelos ML y automatización de procesos."},
             {"empresa": "Enel", "cargo": "Profesional en Infraestructura y Redes", "fechas": "Jul 2010 – Ago 2023", "descripcion": "Gestión de proyectos MT/BT, análisis de redes y mantenimiento eléctrico."},
         ]

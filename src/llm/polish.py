@@ -399,15 +399,33 @@ def _word_ranges(experiences, profile, offer_text):
     return [LONG_RANGE if index == first else SHORT_RANGE for index in range(len(scores))]
 
 
+# Nombres de clases de librerías ("LinearRegression", "DecisionTreeRegressor").
+_CLASS_NAME = re.compile(r"\b[A-Z][a-z]+(?:[A-Z][a-z]+)*(?:Regressor|Classifier|Regression)\b")
+
+
 def _offer_tools(source, offer_text):
-    """Herramientas de la experiencia que la oferta nombra (p. ej., n8n, Make, Agentes de voz)."""
-    offer_stems = _stems_of(offer_text, _ECHO_STEM)
+    """Herramientas de la experiencia que la oferta nombra (p. ej., n8n, Make, Agentes de voz).
+
+    Por palabra completa, no por raíz: por raíz "LinearRegression" coincidía con "lineamientos"
+    y "ReportLab" con "reporting", y se le pedía a Gemini escribir nombres que no venían al caso."""
+    offer = (offer_text or "").casefold()
+
+    def has(word):
+        return re.search(r"(?<!\w)" + re.escape(word) + r"(?!\w)", offer)
+
+    # Solo herramientas que la descripción o los logros mencionan de verdad: las etiquetas sueltas
+    # ("Cloud") hacían que el modelo inventara frases como "PostgreSQL on-premise… en la nube".
+    facts = " ".join(_source_sentences(source)).casefold()
     found = []
     for tool in source.get("herramientas", []):
-        stems = _stems_of(str(tool), _ECHO_STEM)
-        exact = re.search(r"(?<!\w)" + re.escape(str(tool).casefold()) + r"(?!\w)", (offer_text or "").casefold())
-        if exact or (stems and stems <= offer_stems):
-            found.append(str(tool))
+        name = str(tool)
+        if _CLASS_NAME.fullmatch(name):
+            continue  # nombres de clases de librerías: el CV no debe mencionarlos
+        if not re.search(r"(?<!\w)" + re.escape(name.casefold()) + r"(?!\w)", facts):
+            continue
+        words = [word for word in re.findall(r"\w+", name.casefold()) if len(word) >= 3]
+        if has(name.casefold()) or (len(words) > 1 and all(has(word) for word in words)):
+            found.append(name)
     return found
 
 
@@ -520,12 +538,21 @@ def _review_experience(text, source, other_tools, generic=None, min_words=70, wa
             origins = [src for src in sentences_source if metric in src]  # descripción y logro
             if not origins:
                 continue
+            # "Estos agentes generaron… 50%": el sujeto está en la oración anterior de la fuente.
+            for position, src in enumerate(sentences_source):
+                if src in origins and position and re.match(r"\s*(?:est[oa]s?|este)\b", src, re.IGNORECASE):
+                    origins.append(sentences_source[position - 1])
             origin = origins[0]
             # Si va junto a otra cifra que en la fuente comparte oración con ella (35%, 50% y
             # 70% de los mismos agentes), sigue unida a su acción.
             if any(other != metric and any(other in src for src in origins) for other in metrics):
                 continue
-            others = _stems_of(" ".join(src for src in sentences_source if metric not in src), _ECHO_STEM)
+            # Mismo proyecto: las oraciones con alguna cifra que comparte oración con esta (el logro
+            # de los agentes con 35% y 70% también habla del 50%).
+            siblings = {found for src in origins for found in re.findall(_PERCENT, src)}
+            others = _stems_of(" ".join(src for src in sentences_source
+                                        if src not in origins and not any(sibling in src for sibling in siblings)),
+                               _ECHO_STEM)
             own = _stems_of(" ".join(origins), _ECHO_STEM) - others - generic_result_stems
             position = sentence.find(metric)
             action_stems = _stems_of(sentence[:position], _ECHO_STEM) if position >= 0 else set()
@@ -541,9 +568,14 @@ def _review_experience(text, source, other_tools, generic=None, min_words=70, wa
     if missing:
         issues.append("faltan herramientas de la fuente que la oferta pide: " + ", ".join(missing))
     # Nombres de clases de librerías ("DecisionTreeRegressor"): el prompt los prohíbe.
-    classes = sorted(set(re.findall(r"\b[A-Z][a-z]+(?:[A-Z][a-z]+)+(?:Regressor|Classifier|Regression)\b", text)))
+    classes = sorted(set(_CLASS_NAME.findall(text)))
     if classes:
         issues.append("usa nombres de clases de librerías (" + ", ".join(classes) + "): escribe, por ejemplo, \"modelos basados en árboles\" o \"regresión lineal\"")
+    # Oraciones larguísimas: el modelo ligero, al corregir, junta varias acciones en una sola.
+    long_sentences = [sentence for sentence in re.split(r"(?<=[.!?])\s+", text) if len(sentence.split()) > 45]
+    if long_sentences:
+        issues.append(f"oración demasiado larga ({len(long_sentences[0].split())} palabras): divídela en oraciones "
+                      f"de 15 a 30 palabras, una acción por oración: «{long_sentences[0].strip()[:120]}…»")
     # Relativo "cuyo/cuya": el modelo ligero lo usa mal ("la norma ISO 50001, cuyas medidas…").
     relative = re.search(r"[^.]*\bcuy[oa]s?\b[^.]*\.", text, re.IGNORECASE)
     if relative:
@@ -616,7 +648,8 @@ def _review_and_correct(experiences, final_descriptions, proposals, profile, rep
         report["avisos"].append(f"No se pudo pedir la corrección a Gemini ({exc}).")
     for index, text in corrected.items():
         if index in flagged:
-            final_descriptions[index] = text
+            # Recortada antes de la revisión final, para que un hecho agregado al final no se pierda sin aviso.
+            final_descriptions[index] = _limit_words(text, ranges[index][1], ranges[index][0])
     for index in flagged:
         remaining = review(index)
         if remaining:
@@ -683,15 +716,13 @@ def polish_with_gemini(summary, experiences, priorities, profile, offer_text=Non
         for index, item in enumerate(experiences):
             polished = proposals.get(index, "")
             if polished:
-                final_descriptions[index] = polished
+                # Recortada ANTES de revisar: lo que la revisión aprueba es lo que queda en el CV.
+                final_descriptions[index] = _limit_words(polished, ranges[index][1], ranges[index][0])
             report["bloques"].append({
                 "bloque": item.get("empresa", f"experiencia {index}"),
                 "resultado": "redactado por Gemini" if polished else "Gemini lo devolvió vacío; se conserva el de Groq",
             })
         _review_and_correct(experiences, final_descriptions, proposals, profile, report, ranges, offer_text)
-        for index in proposals:
-            if index < len(final_descriptions):
-                final_descriptions[index] = _limit_words(final_descriptions[index], ranges[index][1], ranges[index][0])
     except GeminiUnavailable as exc:
         report["avisos"].append(f"Experiencias: Gemini no disponible ({exc}); se conservan los textos de Groq.")
         for index, item in enumerate(experiences):

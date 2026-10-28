@@ -352,3 +352,12 @@ def test_skills_only_enter_their_own_category_and_offer_acronyms_are_not_compani
     assert not any("organización" in issue for issue in llm._experience_issues(text, experience, "", ["Media"]))
     assert any("organización" in issue
                for issue in llm._experience_issues(text + " Trabajé para Media.", experience, "", ["Media"]))
+
+
+def test_experience_dates_show_their_duration():
+    from src.rendering.pdf_renderer import _duration, _experience_block
+
+    assert _duration("Jul 2025 – Sep 2026") == "1 año 3 meses"
+    assert _duration("Jul 2010 – Ago 2023") == "13 años 2 meses"
+    assert _duration("2015") == ""
+    assert _experience_block({"fechas": "Sep 2023 – Jul 2025"})["fechas"] == "Sep 2023 – Jul 2025 · 1 año 11 meses"

@@ -198,10 +198,19 @@ def _misplaced_metric_issues(description, experience):
         for sentence in re.split(r"(?<=[.!?])\s+", value)
     ]
     experience_terms = {_stem(term) for sentence in source_sentences for term in _significant_terms(sentence)}
+    # Las herramientas que solo están en la lista ("Scikit-learn" en Enel) no son acciones de otra
+    # oración: nombrarlas junto a una cifra no la traslada. Las que sí aparecen en alguna oración
+    # ("Machine Learning") se siguen revisando.
+    facts = " ".join([str(experience.get("descripcion", ""))] + [str(item) for item in experience.get("logros", [])])
+    fact_terms = {_stem(term) for term in _significant_terms(facts)}
+    tool_terms = {_stem(term) for tool in experience.get("herramientas", []) for term in _significant_terms(str(tool))}
+    experience_terms -= tool_terms - fact_terms
     issues = []
     # Cláusulas: también se separa en "y" + verbo en pasado ("…con XGBoost y elaboré un modelo…"),
     # porque ahí empieza otra acción con su propia cifra.
-    clause_split = r"[,;:]|(?<=[.!?])\s+|\s+y\s+(?=[a-záéíóúñ]+[éí]\b)"
+    # También "y aplicando…" (gerundio) e "y un modelo…" (otro objeto con su propia cifra).
+    clause_split = (r"[,;:]|(?<=[.!?])\s+|\s+y\s+(?=[a-záéíóúñ]+(?:é|í|ando|iendo|endo)\b)"
+                    r"|\s+y\s+(?=(?:un|una|el|la|los|las)\s)")
     for clause in re.split(clause_split, re.sub(r"(\d)\s+%", r"\1%", description or "")):
         for metric in re.findall(r"\d+(?:[.,]\d+)?%", clause):
             # La oración siguiente cuenta como parte de la misma acción si se refiere a ella
