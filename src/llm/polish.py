@@ -65,6 +65,7 @@ CÓMO DEBE SER EL PERFIL:
 - Si hay años de experiencia en el material, son mi trayectoria TOTAL y se describen como en el material, combinando las áreas que allí aparecen (por ejemplo, "más de N años de trayectoria integrando [área 1] y [área 2]"). Nunca los atribuyas a una sola área o profesión ("15 años en analítica" está mal si el material dice que se combinaron varias áreas).
 - Oraciones 2 y 3: dos o tres fortalezas reales que respondan a las prioridades de la oferta, contadas como capacidades (qué hago y para qué sirve), no como lista de proyectos.
 - Como máximo 5 herramientas, solo de las que aparecen en el material, elegidas según la oferta. Sin nombres de clases de librerías.
+- Si el material muestra cómo trabajo con otras personas (por ejemplo, liderar equipos o levantar requerimientos con clientes), cuéntalo en una oración como capacidad, sin adjetivos de autoelogio ("excelente comunicador", "muy proactivo").
 - Oración final: el diferencial real que muestra el material, sin exagerar.
 - Sin porcentajes ni cifras de resultados (van en la sección de experiencia). Sin repetir proyectos concretos de las experiencias.
 - No encadenes más de dos "y" en una oración, no dejes listas unidas solo con comas y no repitas palabras.
@@ -89,6 +90,7 @@ REESTRUCTURA:
 - Recibes todas las experiencias juntas: coordínalas. Una práctica común a varias experiencias (por ejemplo, análisis exploratorio, feature engineering o validación de modelos) se menciona de forma explícita en UNA sola experiencia, la más relevante para la oferta; en las demás no repitas esa frase. Tampoco repitas entre experiencias la misma estructura de oración ni el mismo verbo inicial.
 - Cada experiencia trae "texto_actual" (el borrador a reescribir) y "fuente" (mi perfil maestro, que es la verdad). Si el borrador omitió una herramienta, acción o cifra de la fuente que sea relevante para la oferta, recupérala; si la cambió (por ejemplo, "incidentes" donde la fuente dice "accidentes", o una cifra unida a otra acción), corrígela según la fuente. Usa SOLO hechos de esa misma experiencia: nunca tomes datos de otra.
 - No cierres una descripción con una enumeración de áreas o disciplinas ("Integré ingeniería eléctrica, gestión de proyectos, análisis de datos y automatización"): termina con un hecho concreto de la fuente.
+- TRABAJO CON OTRAS PERSONAS: si la fuente trae "colaboracion", incluye UNA oración que lo cuente como hecho (con quién trabajé y para qué), enlazada con naturalidad a los logros, para que la descripción no sea solo una lista de resultados. Las habilidades blandas se demuestran con hechos, nunca se declaran: no escribas "excelente trabajo en equipo", "soy proactivo" ni "gran capacidad de comunicación". No agregues personas, equipos ni áreas que la fuente no nombre.
 - Primera persona del singular y tiempo pasado.
 - Conserva sin alteración todas las tecnologías, herramientas, normas y estándares, y todas las cifras y métricas, cada una unida al mismo resultado y a la misma acción que en el original. No elimines ninguna.
 - Cada descripción es UN SOLO PÁRRAFO continuo, sin listas ni títulos, con la longitud que indica su campo "palabras" (por ejemplo "110-160"): la experiencia más relevante para la oferta tiene más espacio. Usa ese espacio sin quedarte corto, y el límite superior es estricto: elige los hechos más relevantes para la oferta, empezando por las herramientas de la fuente que la oferta pide, y deja fuera el resto. No escribas el nombre de la empresa, el cargo ni las fechas: ya aparecen en el encabezado.
@@ -342,10 +344,11 @@ MATERIAL:
 
 
 def _source_experience(item, profile):
-    """Descripción original, logros y herramientas de esa experiencia en el perfil maestro."""
+    """Descripción original, logros, trabajo con otras personas y herramientas de esa experiencia
+    en el perfil maestro."""
     for source in profile.get("experiencia", []):
         if source.get("empresa") == item.get("empresa") and source.get("cargo") == item.get("cargo"):
-            return {key: source.get(key) for key in ("descripcion", "logros", "herramientas") if source.get(key)}
+            return {key: source.get(key) for key in ("descripcion", "logros", "colaboracion", "herramientas") if source.get(key)}
     return {}
 
 
@@ -376,7 +379,8 @@ def _relevance_scores(experiences, profile, offer_text):
         part.strip()
         for key in ("aptitudes", "software", "competencias", "habilidades", "nuevas_tecnologias")
         for item in profile.get(key, [])
-        for part in re.split(r"\s*[/&]\s*", str(item)) if len(part.strip()) >= 2
+        # "Power BI (DAX, Power Query)" cuenta como "Power BI", "DAX" y "Power Query".
+        for part in re.split(r"\s*[/&(),]\s*", str(item)) if len(part.strip()) >= 2
     }
     requested = [name for name in names if _mentions(offer_text, name)]
     scores = []
@@ -464,7 +468,8 @@ _VERB_ENDINGS = ("ando", "iendo", "endo", "aron", "ieron", "eron", "ujo", "uje",
 def _source_sentences(source):
     # Cada logro es una oración aparte aunque no termine en punto (antes se pegaba con el
     # siguiente y cifras de proyectos distintos parecían ir juntas).
-    parts = [str(source.get("descripcion", ""))] + [str(item) for item in source.get("logros", [])]
+    parts = ([str(source.get("descripcion", ""))] + [str(item) for item in source.get("logros", [])]
+             + [str(item) for item in source.get("colaboracion", [])])
     text = " ".join(part.strip() if part.strip().endswith((".", "!", "?")) else part.strip() + "." for part in parts if part.strip())
     return [re.sub(r"(\d)\s+%", r"\1%", sentence) for sentence in re.split(r"(?<=[.!?])\s+", text) if sentence.strip()]
 
@@ -563,6 +568,14 @@ def _review_experience(text, source, other_tools, generic=None, min_words=70, wa
     if len(text.split()) < min_words and len(source_text.split()) > min_words + 30:
         issues.append(f"descripción demasiado corta (menos de {min_words} palabras): recupera de la fuente los "
                       "hechos, herramientas y cifras más relevantes para la oferta")
+    # Trabajo con otras personas: si la fuente lo trae, la descripción debe contarlo (al menos la
+    # mitad de las palabras de alguno de esos hechos), para que no quede solo una lista de logros.
+    teamwork = [str(item) for item in source.get("colaboracion", []) if str(item).strip()]
+    text_stems = _stems_of(text, _ECHO_STEM)
+    if teamwork and not any(len(_stems_of(item, _ECHO_STEM) & text_stems) >= 0.5 * len(_stems_of(item, _ECHO_STEM))
+                            for item in teamwork):
+        issues.append("falta una oración sobre el trabajo con otras personas; cuéntala como hecho, según la fuente: "
+                      f"«{teamwork[0]}»")
     # Herramientas de la fuente que la oferta pide y se perdieron (p. ej., n8n, agentes de voz).
     missing = [tool for tool in wanted_tools if not _mentioned_tools(text, [tool])]
     if missing:

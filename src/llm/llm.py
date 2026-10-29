@@ -201,7 +201,8 @@ def _misplaced_metric_issues(description, experience):
     # Las herramientas que solo están en la lista ("Scikit-learn" en Enel) no son acciones de otra
     # oración: nombrarlas junto a una cifra no la traslada. Las que sí aparecen en alguna oración
     # ("Machine Learning") se siguen revisando.
-    facts = " ".join([str(experience.get("descripcion", ""))] + [str(item) for item in experience.get("logros", [])])
+    facts = " ".join([str(experience.get("descripcion", ""))] + [str(item) for item in experience.get("logros", [])]
+                     + [str(item) for item in experience.get("colaboracion", [])])
     fact_terms = {_stem(term) for term in _significant_terms(facts)}
     tool_terms = {_stem(term) for tool in experience.get("herramientas", []) for term in _significant_terms(str(tool))}
     experience_terms -= tool_terms - fact_terms
@@ -656,7 +657,7 @@ def _compact_profile_for_summary(profile):
         # Sin las herramientas de cada experiencia (traen clases como GradientBoostingRegressor
         # y llevaban al modelo a enumerarlas); la lista general "software" basta para el resumen.
         "experiencia": [
-            {k: exp.get(k) for k in ("empresa", "cargo", "fechas", "sectores", "proyectos") if exp.get(k)}
+            {k: exp.get(k) for k in ("empresa", "cargo", "fechas", "sectores", "proyectos", "colaboracion") if exp.get(k)}
             for exp in profile.get("experiencia", [])
         ],
         "software": profile.get("software", []),

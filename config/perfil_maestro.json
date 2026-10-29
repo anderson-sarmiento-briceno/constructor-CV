@@ -66,7 +66,8 @@
         "Herramienta en Streamlit para comparar rutas propias con el sistema SITP usando archivos GeoJSON.",
         "Sistema multiagente de IA con la API de Claude para responder en Slack preguntas sobre los datos de la empresa (PostgreSQL)."
       ],
-      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "XGBoost", "SHAP", "NumPy", "Polars", "ReportLab", "Matplotlib", "Seaborn", "KML", "Machine Learning", "Inteligencia Artificial", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA", "Streamlit", "GeoJSON", "Git", "GitHub", "API de Claude", "Sistemas multiagente", "Slack", "Windows Server", "TypeScript", "Node.js", "Express", "Zod", "Function Calling", "Anthropic SDK", "Claude Haiku", "APIs REST", "JSON", "Prompt Engineering", "CSV"],
+      "colaboracion": ["Trabajé con las áreas de mantenimiento, infraestructura eléctrica, operaciones y contabilidad para levantar sus necesidades y convertirlas en modelos, dashboards y automatizaciones."],
+      "herramientas": ["Python", "Pandas", "Parquet", "PostgreSQL", "Power BI", "DAX", "Power Query", "ETL", "APIs", "Telemetría", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "RandomForestRegressor", "XGBoost", "SHAP", "NumPy", "Polars", "ReportLab", "Matplotlib", "Seaborn", "KML", "Machine Learning", "Inteligencia Artificial", "Cloud", "GitHub Copilot", "Claude", "Canvas", "Hugging Face", "Agentes de IA", "Streamlit", "GeoJSON", "Git", "GitHub", "API de Claude", "Sistemas multiagente", "Slack", "Windows Server", "TypeScript", "Node.js", "Express", "Zod", "Function Calling", "Anthropic SDK", "Claude Haiku", "APIs REST", "JSON", "Prompt Engineering", "CSV"],
       "logros": [
         "Automatización del procesamiento de grandes volúmenes de telemetría con reducción del 80% en el tiempo dedicado a la generación de informes.",
         "Modelo de análisis de desgaste de flota que mejoró en un 28% la precisión de las proyecciones de desgaste.",
@@ -75,7 +76,7 @@
         "Diseño e implementación de un modelo de regresión lineal del consumo energético en el marco de la implementación de la norma ISO 50001; las medidas aplicadas a partir del modelo redujeron el consumo en un 6%.",
         "Desarrollo de una herramienta en Streamlit para comparar rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas."
       ],
-      "descripcion": "Diseñé e implementé un modelo de regresión lineal del consumo energético de una flota de buses eléctricos para establecer su Línea Base Energética y sus metas de ahorro, en el marco de la implementación de la norma ISO 50001. Partí del análisis exploratorio de la telemetría y apliqué feature engineering antes de validar el modelo. Las medidas aplicadas a partir de él redujeron el consumo energético en un 6%. Desarrollé con la API de Claude, TypeScript y Node.js un agente de IA en Slack para el área de compras que lee cada solicitud, la valida contra los maestros con 10 reglas de control (proveedor, aprobador y topes, centro de costo, cotización, IVA y facturas retroactivas), pide confirmación humana en las excepciones y deja la orden de compra lista en un archivo CSV, con su evidencia de aprobación. Esto redujo la digitación manual, mejoró la calidad de las órdenes de compra, porque los controles que el analista hacía de forma visual ahora los aplica el agente, y dejó trazabilidad de cuándo y cómo se creó cada una. Desarrollé un modelo del Estado de Salud (SOH) de las baterías con XGBoost, evaluado con validación cruzada GroupKFold e interpretado con SHAP para identificar los factores de degradación. Elaboré un modelo de desgaste de flota para detectar patrones de comportamiento y apoyar el mantenimiento predictivo, que mejoró en un 28% la precisión de las proyecciones de desgaste. Construí informes automatizados en PDF con Polars y ReportLab a partir de grandes volúmenes de telemetría y archivos Parquet, lo que redujo en un 80% el tiempo dedicado a los reportes. Integré datos de APIs de operación, Siesa (ERP), Excel y telemetría en PostgreSQL on-premise mediante pipelines ETL en Python, validando su calidad, y los llevé a dashboards interactivos de Power BI, donde definí y monitoreé los KPIs de desempeño energético de la norma ISO 50001. Diseñé un sistema multiagente de IA con la API de Claude que responde en Slack preguntas sobre los datos de la empresa: un orquestador delega en cinco agentes especialistas (operación, flota, energía, finanzas y personal). Los agentes consultan PostgreSQL mediante una API de solo lectura, con permisos por usuario y auditoría de cada consulta, en un servidor Windows on-premise. Gestioné el control de versiones del código con Git y GitHub."
+      "descripcion": "Diseñé e implementé un modelo de regresión lineal del consumo energético de una flota de buses eléctricos para establecer su Línea Base Energética y sus metas de ahorro, en el marco de la implementación de la norma ISO 50001. Partí del análisis exploratorio de la telemetría y apliqué feature engineering antes de validar el modelo. Las medidas aplicadas a partir de él redujeron el consumo energético en un 6%. Desarrollé con la API de Claude, TypeScript y Node.js un agente de IA en Slack para el área de compras que lee cada solicitud, la valida contra los maestros con 10 reglas de control (proveedor, aprobador y topes, centro de costo, cotización, IVA y facturas retroactivas), pide confirmación humana en las excepciones y deja la orden de compra lista en un archivo CSV, con su evidencia de aprobación. Esto redujo la digitación manual, mejoró la calidad de las órdenes de compra, porque los controles que el analista hacía de forma visual ahora los aplica el agente, y dejó trazabilidad de cuándo y cómo se creó cada una. Desarrollé un modelo del Estado de Salud (SOH) de las baterías con XGBoost, evaluado con validación cruzada GroupKFold e interpretado con SHAP para identificar los factores de degradación. Elaboré un modelo de desgaste de flota para detectar patrones de comportamiento y apoyar el mantenimiento predictivo, que mejoró en un 28% la precisión de las proyecciones de desgaste. Construí informes automatizados en PDF con Polars y ReportLab a partir de grandes volúmenes de telemetría y archivos Parquet, lo que redujo en un 80% el tiempo dedicado a los reportes. Integré datos de APIs de operación, Siesa (ERP), Excel y telemetría en PostgreSQL on-premise mediante pipelines ETL en Python, validando su calidad, y los llevé a dashboards interactivos de Power BI, con medidas en DAX y transformaciones en Power Query, donde definí y monitoreé los KPIs de desempeño energético de la norma ISO 50001. Diseñé un sistema multiagente de IA con la API de Claude que responde en Slack preguntas sobre los datos de la empresa: un orquestador delega en cinco agentes especialistas (operación, flota, energía, finanzas y personal). Los agentes consultan PostgreSQL mediante una API de solo lectura, con permisos por usuario y auditoría de cada consulta, en un servidor Windows on-premise. Gestioné el control de versiones del código con Git y GitHub."
     },
     {
       "empresa": "Consultor Freelance",
@@ -102,6 +103,7 @@
         "Procesos ETL y web scraping para fuentes web.",
         "Prototipo de Data Warehouse con Python, R, Delta Lake y DuckDB."
       ],
+      "colaboracion": ["Levanté los requerimientos con cada cliente para diseñar soluciones a la medida de sus necesidades de negocio.", "Gestioné cada proyecto de forma autónoma, desde el levantamiento de requerimientos con el cliente hasta la puesta en producción."],
       "herramientas": ["Python", "Spark", "Machine Learning", "MetaTrader 5", "n8n", "WhatsApp Business API", "APIs", "ETL", "Web Scraping", "Scikit-learn", "GradientBoostingRegressor", "RandomForestRegressor", "LinearRegression", "DecisionTreeRegressor", "Árboles de regresión", "R", "Delta Lake", "DuckDB", "Polars", "SQLAlchemy", "Data Warehouse", "YOLO", "Deep Learning", "Visión por computadora", "Inteligencia Artificial", "OpenAI", "Canvas", "Make", "Cloud", "GitHub Copilot", "Claude", "Hugging Face", "PyTorch", "Procesamiento de lenguaje natural (NLP)", "Agentes de IA", "FastAPI", "AWS", "CRM", "Google Calendar", "Agentes de voz", "AWS Lambda", "DynamoDB", "APIs REST", "RESTful", "Prompt Engineering", "Git", "GitHub"],
       "logros": [
         "Agentes de IA de ventas integrados con WhatsApp API y CRM que lograron un incremento del 35% en la conversión de ventas y automatizaron la resolución del 70% de las preguntas frecuentes",
@@ -121,6 +123,7 @@
       "responsabilidades": [
         "Análisis de requerimientos técnicos, planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos eléctricos.",
         "Dirección de más de 20 proyectos de redes aéreas bajo CREG y RETIE.",
+        "Gestión de los contratos de obras de mantenimiento de redes y ejecución de obras eléctricas, con automatización de sus procesos en Python.",
         "Análisis de datos históricos y operativos para eficiencia y reducción de costos.",
         "Desarrollo de modelos predictivos de riesgo en obras eléctricas con Machine Learning.",
         "Exploración de datos históricos, diseño de variables y validación de los modelos predictivos de riesgo.",
@@ -138,13 +141,14 @@
         "Modelado de redes eléctricas con Digsilent y PSS/E.",
         "Validación de solicitudes de compra de obras eléctricas con salida en CSV para carga a SAP (script en Python)."
       ],
-      "herramientas": ["Python", "AWS", "Power BI", "Tableau", "Digsilent", "PSS/E", "CREG", "RETIE", "HSEQ", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "Machine Learning", "Automatización con Python", "SAP", "CSV", "Git", "GitHub"],
+      "colaboracion": ["Lideré equipos multidisciplinarios en el análisis de requerimientos técnicos, la planificación, el diseño, la ejecución y el seguimiento de los proyectos.", "Trabajé en conjunto con las áreas de infraestructura eléctrica, planeación de la red y operación y mantenimiento (OyM) en el mantenimiento de las redes y la ejecución de obras.", "Gestioné los contratos de las obras eléctricas y automaticé con Python los procesos asociados a su seguimiento."],
+      "herramientas": ["Python", "AWS", "Power BI", "DAX", "Power Query", "Tableau", "Digsilent", "PSS/E", "CREG", "RETIE", "HSEQ", "Scikit-learn", "LinearRegression", "GradientBoostingRegressor", "Machine Learning", "Automatización con Python", "SAP", "CSV", "Git", "GitHub"],
       "logros": [
         "Reducción del 40% en accidentes mediante modelos predictivos de riesgo.",
         "Dirección de más de 20 proyectos de redes aéreas con cumplimiento de plazos y presupuestos en el 85% de los proyectos.",
         "Implementación de alertas tempranas para seguimiento de armónicos, logrando una reducción del 55% en tiempo de detección de anomalías."
       ],
-      "descripcion": "Lideré equipos multidisciplinarios en el análisis de requerimientos técnicos, la planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos de infraestructura eléctrica y redes MT/BT. Dirigí más de 20 proyectos de redes aéreas bajo estándares CREG y RETIE, cumpliendo plazos y presupuestos en el 85% de los proyectos. Desarrollé modelos predictivos para identificar patrones de riesgo en obras eléctricas, logrando una reducción del 40% en accidentes. Para estos modelos exploré los datos históricos de obras y de la red, diseñé las variables predictivas y validé su desempeño. Definí KPIs para distintos procesos y construí dashboards en Power BI para su monitoreo, incluidos los indicadores HSEQ de tasa de accidentabilidad y cumplimiento RETIE. Implementé un sistema de alertas tempranas para la identificación y seguimiento de armónicos con Python y AWS, reduciendo en un 55% el tiempo de detección de anomalías. Realicé análisis de datos en tiempo real con Tableau para apoyar la atención de fallas críticas, y participé en el modelado de redes eléctricas con Digsilent y PSS/E para evaluar y predecir el comportamiento operativo de los sistemas. Integré ingeniería eléctrica, gestión de proyectos, análisis de datos y automatización de procesos con scripts propios en Python, y consulté en SAP (ERP) la información de las obras eléctricas, para respaldar decisiones técnicas y operativas. Desarrollé un script en Python, ejecutado en un servidor local, que validaba las solicitudes de compra de las obras eléctricas (proveedor activo, aprobador y topes, centro de costo, cotización e impuestos) y generaba un archivo CSV listo para cargar en SAP."
+      "descripcion": "Lideré equipos multidisciplinarios en el análisis de requerimientos técnicos, la planificación, diseño, ejecución, mantenimiento y seguimiento de proyectos de infraestructura eléctrica y redes MT/BT. Dirigí más de 20 proyectos de redes aéreas bajo estándares CREG y RETIE, cumpliendo plazos y presupuestos en el 85% de los proyectos. Desarrollé modelos predictivos para identificar patrones de riesgo en obras eléctricas, logrando una reducción del 40% en accidentes. Para estos modelos exploré los datos históricos de obras y de la red, diseñé las variables predictivas y validé su desempeño. Definí KPIs para distintos procesos y construí dashboards en Power BI, con medidas en DAX y transformaciones en Power Query, para su monitoreo, incluidos los indicadores HSEQ de tasa de accidentabilidad y cumplimiento RETIE. Implementé un sistema de alertas tempranas para la identificación y seguimiento de armónicos con Python y AWS, reduciendo en un 55% el tiempo de detección de anomalías. Realicé análisis de datos en tiempo real con Tableau para apoyar la atención de fallas críticas, y participé en el modelado de redes eléctricas con Digsilent y PSS/E para evaluar y predecir el comportamiento operativo de los sistemas. Integré ingeniería eléctrica, gestión de proyectos, análisis de datos y automatización de procesos con scripts propios en Python, y consulté en SAP (ERP) la información de las obras eléctricas, para respaldar decisiones técnicas y operativas. Desarrollé un script en Python, ejecutado en un servidor local, que validaba las solicitudes de compra de las obras eléctricas (proveedor activo, aprobador y topes, centro de costo, cotización e impuestos) y generaba un archivo CSV listo para cargar en SAP."
     }
   ],
   "habilidades": [
@@ -156,7 +160,7 @@
     "Liderazgo de Equipos",
     "Python",
     "SQL / PostgreSQL",
-    "Power BI",
+    "Power BI (DAX, Power Query)",
     "Spark",
     "Pandas / Scikit-learn",
     "Machine Learning",
@@ -242,11 +246,18 @@
   ],
   "habilidades_blandas": [
     "Trabajo en equipo",
+    "Comunicación con públicos no técnicos",
     "Liderazgo de equipos",
-    "Comunicación efectiva",
+    "Levantamiento de requerimientos",
+    "Colaboración con áreas de negocio",
     "Pensamiento analítico",
     "Resolución de problemas",
+    "Autonomía",
+    "Pensamiento crítico",
+    "Aprendizaje continuo",
+    "Uso responsable de la IA",
     "Adaptabilidad tecnológica",
+    "Comunicación efectiva",
     "Organización y gestión del tiempo",
     "Orientación a resultados"
   ],
@@ -254,7 +265,7 @@
     "Python",
     "TypeScript / Node.js",
     "SQL / PostgreSQL",
-    "Power BI",
+    "Power BI (DAX, Power Query)",
     "Pandas / Scikit-learn",
     "Spark",
     "XGBoost / SHAP",
@@ -359,6 +370,7 @@
     "Desarrollo de un modelo de análisis de desgaste de flota para apoyar la identificación de patrones y la gestión predictiva del mantenimiento, mejorando en un 28% la precisión de las proyecciones de desgaste.",
     "Pipelines ETL automatizados con Python que unificaron APIs de operación, Siesa, Excel y fuentes de telemetría hacia PostgreSQL y Power BI, reduciendo el tiempo de integración de datos en un 70%.",
     "Construcción de dashboards interactivos en Power BI para seguimiento de consumo energético, operación de flota e indicadores de desempeño, permitiendo una toma de decisiones 60% más rápida.",
+    "Agente de IA en Slack para el área de compras de Green Movil que redujo la digitación manual de las órdenes de compra y mejoró su calidad al reemplazar la revisión visual que hacía el analista por 10 reglas de control automáticas (proveedor, aprobador y topes, centro de costo, cotización e IVA), dejando trazabilidad de cuándo y cómo se creó cada orden.",
     "Desarrollo de una herramienta en Streamlit para comparar rutas de la empresa con el resto del sistema SITP, calculando el porcentaje de pasajeros origen-destino por ruta y su distribución por localidad, mejorando el análisis comparativo de demanda para la toma de decisiones operativas.",
     "Agentes de IA de ventas con OpenAI, n8n, WhatsApp Business API y CRM, desplegados con FastAPI en AWS Lambda y DynamoDB: +35 % de conversión, -50 % en costo de adquisición y 70 % de preguntas frecuentes automatizadas.",
     "Desarrollo de bots para análisis predictivo de mercados Forex utilizando Python, árboles de regresión y plataforma MetaTrader 5, alcanzando una precisión del 82% en señales de trading.",

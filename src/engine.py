@@ -80,25 +80,51 @@ def select_logros_for_cv(profile, offer_text, experiences):
     y no repiten las experiencias mostradas; luego se completa con los demás logros del
     perfil, empezando por los que menos repiten lo que ya dicen las experiencias."""
     experience_text = re.sub(r"(\d)\s+%", r"\1%", " ".join(str(item.get("descripcion", "")) for item in experiences))
-    experience_terms = _significant_terms(experience_text)
-    experience_stems = _stems_of(experience_text, _ECHO_STEM)
     all_logros = [re.sub(r"(\d)\s+%", r"\1%", str(logro)).strip() for logro in profile.get("logros", [])]
     # Palabras exclusivas de cada logro (no aparecen en ningún otro): nombran su proyecto.
     stems_per_logro = [{_stem(term, _ECHO_STEM) for term in _significant_terms(logro)} for logro in all_logros]
+    # Los nombres de habilidades y herramientas del perfil ("Machine Learning", "Control de
+    # versiones") no nombran un proyecto aunque solo un logro los use.
+    skill_stems = _stems_of(" ".join(
+        str(item) for key in ("aptitudes", "software", "competencias", "habilidades", "nuevas_tecnologias")
+        for item in profile.get(key, [])), _ECHO_STEM)
     exclusive = {
-        logro: {stem for stem in stems if sum(stem in other for other in stems_per_logro) == 1}
+        logro: {stem for stem in stems if sum(stem in other for other in stems_per_logro) == 1} - skill_stems
         for logro, stems in zip(all_logros, stems_per_logro)
     }
 
+    # Se compara con cada oración de las experiencias, no con todo el texto junto: así una cifra
+    # que aparece en otro proyecto ("40% en los accidentes") no descarta un logro con la misma
+    # cifra ("Spark… 40% el tiempo"), y un logro que repite una oración se detecta aunque el
+    # resto del texto hable de otras cosas.
+    experience_sentences = [
+        (_stems_of(sentence, _ECHO_STEM), sentence)
+        for sentence in re.split(r"(?<=[.!?])\s+", experience_text) if sentence.strip()
+    ]
+
+    # Palabras que comparten muchos logros ("desarrollo", "modelos", "Python", "tiempo") no dicen
+    # de qué proyecto se trata: con ellas, "apuestas deportivas" parecía repetir los modelos de
+    # riesgo de Enel. Se ignoran al comparar.
+    generic = {stem for stem in set().union(*stems_per_logro) if sum(stem in other for other in stems_per_logro) >= 4} \
+        if stems_per_logro else set()
+
     def overlap(logro):
+        all_stems = {_stem(term, _ECHO_STEM) for term in _significant_terms(logro)}
+        if not all_stems:
+            return 1.0
+        stems = all_stems - generic or all_stems
         numbers = re.findall(r"\d+(?:[.,]\d+)?%", logro)
-        if numbers and all(number in experience_text for number in numbers):
-            return 1.0
-        # Mismo proyecto ya contado en una experiencia (p. ej., "apuestas deportivas").
-        if len(exclusive.get(logro, set()) & experience_stems) >= 2:
-            return 1.0
-        terms = _significant_terms(logro)
-        return len(terms & experience_terms) / len(terms) if terms else 1.0
+        best = 0.0
+        for sentence_stems, sentence in experience_sentences:
+            shared = len(stems & sentence_stems) / len(stems)
+            # Repite una oración: comparte buena parte de sus palabras, o algo de su tema junto con
+            # la misma cifra o con una palabra que solo ese logro usa (p. ej., "apuestas"). Sin
+            # ese tema, "cada" en una oración no significa que se contó el agente de compras.
+            if shared >= 0.4 or (shared >= 0.2 and (any(number in sentence for number in numbers)
+                                                   or exclusive.get(logro, set()) & sentence_stems)):
+                return 1.0
+            best = max(best, shared)
+        return best
 
     # Relevancia: cuántas habilidades o herramientas del propio perfil que la oferta pide
     # menciona el logro (por raíz: "Automatización" cuenta en "automatizados"). Las palabras
@@ -118,12 +144,28 @@ def select_logros_for_cv(profile, offer_text, experiences):
         part.strip()
         for key in ("aptitudes", "software", "competencias", "habilidades", "nuevas_tecnologias")
         for item in profile.get(key, [])
-        for part in re.split(r"\s*[/&]\s*", str(item)) if len(part.strip()) >= 2
+        # "Power BI (DAX, Power Query)" cuenta como "Power BI", "DAX" y "Power Query".
+        for part in re.split(r"\s*[/&(),]\s*", str(item)) if len(part.strip()) >= 2
     }
     requested = {name for name in skill_names if mentions(offer_text, name)}
 
     def relevance(logro):
         return sum(mentions(logro, name) for name in requested)
+
+    # Un logro pertenece a un proyecto del perfil si nombra todas las palabras del nombre del
+    # proyecto (sin la empresa): "Agente de IA para órdenes de compra" → agente, órdenes,
+    # compra. Nunca se muestran dos logros del mismo proyecto.
+    company_stems = _stems_of(" ".join(str(item.get("empresa", "")) for item in profile.get("experiencia", [])), _ECHO_STEM)
+    project_names = [name_stems(str(project.get("nombre", ""))) - company_stems
+                     for project in profile.get("proyectos", []) if isinstance(project, dict)]
+
+    def project_of(logro):
+        stems = _stems_of(logro, _ECHO_STEM)
+        return next((index for index, name in enumerate(project_names) if name and name <= stems), None)
+
+    def same_project(logro, chosen):
+        project = project_of(logro)
+        return project is not None and any(project_of(other) == project for other in chosen)
 
     # Hasta 5 logros relacionados con la oferta que no repiten las experiencias; luego
     # hasta 4 con los que repiten poco. Nunca un logro repetido (misma cifra o proyecto)
@@ -131,11 +173,14 @@ def select_logros_for_cv(profile, offer_text, experiences):
     candidates = [logro for logro in all_logros if relevance(logro) > 0 and overlap(logro) < 1.0]
     # A igual relevancia, manda el orden del perfil maestro (lo que la persona pone primero).
     ranked = sorted(candidates, key=lambda logro: (overlap(logro) >= 0.6, -relevance(logro), all_logros.index(logro)))
-    selected = [logro for logro in ranked if overlap(logro) < 0.6][:5]
+    selected = []
+    for logro in ranked:
+        if len(selected) < 5 and overlap(logro) < 0.6 and not same_project(logro, selected):
+            selected.append(logro)
     for logro in ranked:
         if len(selected) >= 4:
             break
-        if logro not in selected:
+        if logro not in selected and not same_project(logro, selected):
             selected.append(logro)
     # Siempre al menos 4 logros: primero los relacionados con la oferta (arriba); si no
     # alcanzan, se completa con otros del perfil, empezando por los que menos repiten las
@@ -146,8 +191,34 @@ def select_logros_for_cv(profile, offer_text, experiences):
     for logro in rest:
         if len(selected) >= 4:
             break
-        selected.append(logro)
+        if not same_project(logro, selected):
+            selected.append(logro)
+    # Último recurso: si sin repetir proyecto no se llega a 4, se completa igual.
+    for logro in rest:
+        if len(selected) >= 4:
+            break
+        if logro not in selected:
+            selected.append(logro)
     return selected
+
+
+def select_soft_skills(profile, offer_text, limit=8):
+    """Las habilidades blandas que se muestran (el PDF muestra 8): primero las que la oferta
+    nombra (por raíz: "comunicar" cuenta en "Comunicación…"), luego el orden del perfil."""
+    skills = [str(skill).strip() for skill in profile.get("habilidades_blandas", []) if str(skill).strip()]
+    offer_stems = _stems_of(offer_text or "", _ECHO_STEM)
+
+    def score(skill):
+        stems = {stem for stem in _stems_of(skill, _ECHO_STEM) if len(stem) >= 4}  # sin "con", "de"
+        matched = len(stems & offer_stems)
+        # Con varias palabras deben coincidir al menos dos: "responsable de análisis" en la oferta
+        # no es "Uso responsable de la IA".
+        words = [word for word in re.findall(r"\w+", skill) if len(word) >= 3]
+        if not stems or (len(words) > 1 and matched < 2):
+            return 0
+        return matched / len(stems)
+
+    return sorted(skills, key=lambda skill: (-score(skill), skills.index(skill)))[:limit]
 
 
 def select_relevant_logros(profile, offer_text, proposed=None):
@@ -619,7 +690,7 @@ def generate_cv_pdf_for_offer(offer_name=None, offers_dir=None, profile_path=Non
             "software": adapted.get("software", []),
             "nuevas_tecnologias": adapted.get("nuevas_tecnologias", []),
             "competencias": adapted.get("competencias", []),
-            "habilidades_blandas": profile.get("habilidades_blandas", []),
+            "habilidades_blandas": select_soft_skills(profile, offer_text),
             "experiencia": adapted["experiencia"],
             "formacion": profile.get("formacion", []),
             "logros": adapted["logros"],

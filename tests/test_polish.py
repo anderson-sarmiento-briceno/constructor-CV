@@ -336,3 +336,16 @@ def test_ambiguous_relative_cuyo_is_flagged_for_correction():
     assert any("cuyo/cuya" in issue for issue in polish._review_experience(bad, source, set(), min_words=0))
     good = "Diseñé un modelo de regresión bajo ISO 50001. Las medidas aplicadas redujeron el consumo en un 6%."
     assert not any("cuyo/cuya" in issue for issue in polish._review_experience(good, source, set(), min_words=0))
+
+
+def test_review_asks_for_the_teamwork_sentence_only_when_the_source_has_it():
+    source = {"descripcion": "Dirigí más de 20 proyectos de redes aéreas bajo normas CREG y RETIE.",
+              "colaboracion": ["Lideré equipos multidisciplinarios en la planificación y el seguimiento de los proyectos."]}
+    without = "Dirigí más de 20 proyectos de redes aéreas bajo normas CREG y RETIE."
+    with_teamwork = without + " Lideré equipos multidisciplinarios en la planificación y el seguimiento de cada proyecto."
+
+    assert any("trabajo con otras personas" in issue for issue in polish._review_experience(without, source, set(), min_words=0))
+    assert not any("trabajo con otras personas" in issue
+                   for issue in polish._review_experience(with_teamwork, source, set(), min_words=0))
+    assert not any("trabajo con otras personas" in issue
+                   for issue in polish._review_experience(without, {"descripcion": source["descripcion"]}, set(), min_words=0))

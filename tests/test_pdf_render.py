@@ -332,6 +332,25 @@ def test_logros_skip_a_project_already_told_in_the_experiences():
     assert any("Informes automatizados" in logro for logro in selected)
 
 
+def test_two_logros_of_the_same_project_never_appear_together():
+    from src.engine import select_logros_for_cv
+
+    profile = {"experiencia": [{"empresa": "Green Movil"}],
+               "proyectos": [{"nombre": "Agente de IA para órdenes de compra (Green Movil)"}], "logros": [
+        "Agente de IA en Slack que redujo la digitación de las órdenes de compra con reglas de control en Python.",
+        "Trazabilidad de cada orden de compra creada por el agente con Python.",
+        "Informes automatizados con Python, reduciendo un 80% el tiempo de generación.",
+        "Alertas tempranas de armónicos con Python y AWS, reduciendo un 55% el tiempo de detección.",
+        "Atención de fallas críticas con Tableau, disminuyendo un 35% el tiempo de respuesta.",
+        "Dashboards en Power BI para la operación de la flota.",
+    ]}
+
+    selected = select_logros_for_cv(profile, "Python, Power BI, Tableau", [])
+
+    assert len(selected) >= 4
+    assert sum("orden de compra" in logro or "órdenes de compra" in logro for logro in selected) == 1
+
+
 def test_skills_only_enter_their_own_category_and_offer_acronyms_are_not_companies(monkeypatch):
     import src.engine as engine
     import src.llm.llm as llm
@@ -361,3 +380,69 @@ def test_experience_dates_show_their_duration():
     assert _duration("Jul 2010 – Ago 2023") == "13 años 2 meses"
     assert _duration("2015") == ""
     assert _experience_block({"fechas": "Sep 2023 – Jul 2025"})["fechas"] == "Sep 2023 – Jul 2025 · 1 año 11 meses"
+
+
+def test_logros_compare_sentence_by_sentence_and_power_bi_counts_inside_parentheses():
+    from src.engine import select_logros_for_cv
+
+    profile = {"software": ["Power BI (DAX, Power Query)", "Spark"], "logros": [
+        "Optimización de código en Python y Spark que redujo en un 40% el tiempo de procesamiento.",
+        "Pipelines ETL con Python que unificaron APIs, Siesa, Excel y telemetría hacia PostgreSQL, reduciendo un 70% el tiempo de integración.",
+        "Dashboards interactivos en Power BI para el seguimiento de la operación, con decisiones un 60% más rápidas.",
+        "Modelado de redes eléctricas con Digsilent, mejorando un 20% la precisión de las simulaciones.",
+        "Herramienta en Streamlit para comparar rutas del SITP por localidad.",
+    ]}
+    experiences = [
+        {"descripcion": "Integré datos de APIs, Siesa, Excel y telemetría en PostgreSQL mediante pipelines ETL en Python."},
+        {"descripcion": "Desarrollé modelos de riesgo, con una reducción del 40% en los accidentes."},
+    ]
+
+    selected = select_logros_for_cv(profile, "Python, Spark y Power BI", experiences)
+
+    # La cifra 40% es de otro proyecto (accidentes): el logro de Spark no se descarta.
+    assert selected[0].startswith("Optimización de código")
+    # "Power BI (DAX, Power Query)" cuenta como Power BI pedido por la oferta.
+    assert selected[1].startswith("Dashboards interactivos")
+    # El de los pipelines repite una oración de la experiencia y hay otros 4: no entra.
+    assert len(selected) == 4 and not any(l.startswith("Pipelines") for l in selected)
+
+
+def test_soft_skills_the_offer_names_come_first():
+    from src.engine import select_soft_skills
+
+    profile = {"habilidades_blandas": ["Trabajo en equipo", "Liderazgo de equipos", "Autonomía",
+                                       "Comunicación con públicos no técnicos", "Pensamiento crítico"]}
+
+    selected = select_soft_skills(profile, "Buscamos autonomía y capacidad para comunicar a públicos no técnicos.", limit=3)
+
+    # Las dos que la oferta nombra, en el orden del perfil; luego la primera del perfil.
+    assert selected == ["Autonomía", "Comunicación con públicos no técnicos", "Trabajo en equipo"]
+
+
+def test_logros_are_not_discarded_by_loose_or_generic_words():
+    from src.engine import select_logros_for_cv
+
+    profile = {"competencias": ["Machine Learning", "Control de versiones (Git / GitHub)"], "logros": [
+        "Agente de IA en Slack que redujo la digitación de las órdenes de compra con 10 reglas de control.",
+        "Desarrollo de modelos de análisis predictivo para apuestas deportivas con Python y Machine Learning, mejorando un 25% la tasa de aciertos.",
+        "Reducción del 40% en accidentes mediante modelos predictivos en Python.",
+        "Optimización de código en Python que redujo en un 40% el tiempo de procesamiento.",
+        "Desarrollo de modelos predictivos en Python para el análisis de la demanda.",
+        "Desarrollo de reportes en Python para el análisis de la operación.",
+        "Dashboard en Python para el seguimiento de indicadores HSEQ.",
+        "Herramienta en Python para comparar rutas del SITP.",
+    ]}
+    experiences = [
+        {"descripcion": "Desarrollé modelos predictivos de riesgo en obras eléctricas con Python, lo que redujo un 40% los accidentes. "
+                        "Automaticé validaciones de compra con scripts de Python."},
+        {"descripcion": "Levanté los requerimientos con cada cliente y gestioné el control de versiones con Git."},
+    ]
+
+    selected = select_logros_for_cv(profile, "Python y Machine Learning", experiences)
+
+    # "compra" y "control" en oraciones distintas no son el agente de compras.
+    assert any(logro.startswith("Agente de IA") for logro in selected)
+    # Las palabras genéricas ("modelos", "predictivos", "Python") no hacen repetir a las apuestas.
+    assert any("apuestas" in logro for logro in selected)
+    # El de accidentes sí repite la oración de Enel.
+    assert not any(logro.startswith("Reducción del 40% en accidentes") for logro in selected)
